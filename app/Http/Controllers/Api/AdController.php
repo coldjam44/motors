@@ -722,7 +722,7 @@ if ($request->has('max_kilometer')) {
   
  public function search(Request $request)
 {
-    $query = Ad::with(['subImages', 'fieldValues', 'user', 'views'])
+    $query = Ad::with(['subImages', 'fieldValues', 'user','user', 'views'])
         ->where('status', 'approved');
 
     // ✅ فلترة حسب التصنيف إذا موجود
@@ -930,14 +930,17 @@ if ($request->has('max_kilometer')) {
 }
 
   
-  
- public function indexbyadsid(Request $request)
+public function indexbyadsid(Request $request)
 {
     $query = Ad::with(['subImages', 'fieldValues', 'user', 'adViews']); // إضافة العلاقة adViews
 
+    // إضافة JOIN مع car_models واختيار الأعمدة المحددة فقط (id، value_ar، value_en)
+    $query->leftJoin('car_models', 'ads.car_model', '=', 'car_models.id')
+          ->select('ads.*', 'car_models.id as car_model_id', 'car_models.value_ar as car_model_ar', 'car_models.value_en as car_model_en');
+
     // فلترة بناءً على ad_id إذا تم إرساله في الطلب
     if ($request->has('ad_id')) {
-        $query->where('id', $request->ad_id);
+        $query->where('ads.id', $request->ad_id);
     }
 
     // تنفيذ الاستعلام وجلب النتائج
@@ -964,7 +967,7 @@ if ($request->has('max_kilometer')) {
                     'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
                     'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
                 ],
-              'field_value_id'=> $fieldValue->category_field_value_id,
+                'field_value_id' => $fieldValue->category_field_value_id,
                 'field_value' => [
                     'ar' => optional($fieldValue->fieldValue)->value_ar ?? 'غير معروف',
                     'en' => optional($fieldValue->fieldValue)->value_en ?? 'Unknown',
@@ -974,35 +977,33 @@ if ($request->has('max_kilometer')) {
 
         return [
             'id' => $ad->id,
-           'country_id' => $ad->country_id, // ✅ تمت الإضافة هنا
-    'city_id' => $ad->city_id,       // ✅ تمت الإضافة هنا
+            'country_id' => $ad->country_id,
+            'city_id' => $ad->city_id,
             'user_id' => $ad->user_id,
             'user_name' => trim(optional($ad->user)->first_name . ' ' . optional($ad->user)->last_name) ?: null,
             'user_image' => optional($ad->user)->profile_image ? url('profile_images/' . $ad->user->profile_image) : null,
-            'user_registered_at' => optional($ad->user)->created_at ?? null, // أول تسجيل للمستخدم
-            'last_ad_posted_at' => optional($latestAd)->created_at ?? null, // آخر إعلان تم نشره
+            'user_registered_at' => optional($ad->user)->created_at ?? null,
+            'last_ad_posted_at' => optional($latestAd)->created_at ?? null,
             'title' => $ad->title,
-                      'category_id' => $ad->category_id,
-
+            'category_id' => $ad->category_id,
             'description' => $ad->description,
             'address' => $ad->address,
             'price' => $ad->price,
-                      'kilometer' => $ad->kilometer,
-
+            'kilometer' => $ad->kilometer,
             'phone_number' => $ad->phone_number,
             'status' => $ad->status,
             'main_image' => $ad->main_image,
             'sub_images' => $ad->subImages,
             'details' => $ad->fieldValues,
-            'view_count' => $ad->adViews->count(), // عدد الأشخاص الذين شاهدوا الإعلان
-            'car_model' => $ad->car_model, // Include car model in the response
-
+            'view_count' => $ad->adViews->count(),
+            'car_model_id' => $ad->car_model_id, // إرجاع id الموديل
+            'car_model_ar' => $ad->car_model_ar, // إرجاع القيمة بالعربية
+            'car_model_en' => $ad->car_model_en, // إرجاع القيمة بالإنجليزية
         ];
     });
 
     return response()->json(['ads' => $ads]);
 }
-
 
 
     public function toggleFavorite(Request $request)

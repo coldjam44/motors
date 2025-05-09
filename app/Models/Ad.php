@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\CarModel; // تأكد من استدعاء الموديل في الأعلى
 
 class Ad extends Model
 {
@@ -16,6 +17,11 @@ class Ad extends Model
     public function user()
     {
         return $this->belongsTo(Userauth::class, 'user_id');
+    }
+
+    public function carModel()
+    {
+        return $this->belongsTo(CarModel::class, 'car_model', 'id');
     }
   
   public function views()

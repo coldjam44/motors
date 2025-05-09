@@ -1,5 +1,4 @@
 <?php
-// Model: CarModel.php
 
 namespace App\Models;
 
@@ -10,15 +9,29 @@ class CarModel extends Model
 {
     use HasFactory;
 
-    // تحديد الجدول الذي يرتبط به هذا النموذج
+    // Define the table this model is associated with
     protected $table = 'car_models';
 
-    // الحقول القابلة للتعديل
+    // Define the fields that are mass-assignable
     protected $fillable = ['category_field_id', 'value_ar', 'value_en'];
 
-    // العلاقة مع الحقل "Make"
+    /**
+     * Define the relationship with the CategoryField model.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     */
     public function field()
     {
-        return $this->belongsTo(CategoryField::class, 'category_field_id'); // تغيير الـ foreign key إلى category_field_id
+        return $this->belongsTo(CategoryField::class, 'category_field_id'); // Ensure the foreign key matches
+    }
+
+    /**
+     * Optionally, if you need to get the formatted values or any other logic, you can add methods here.
+     */
+
+    // For example, if you want to get a readable value for the car model
+    public function getFormattedValueAttribute()
+    {
+        return $this->value_en ?? $this->value_ar;
     }
 }
