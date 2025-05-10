@@ -80,33 +80,50 @@ class CategoryFieldController extends Controller
         return view('categories.fields.edit', compact('category', 'field'));
     }
 
-    public function update(Request $request, $id, $field_id)
-    {
-        $request->validate([
-            'field_ar' => 'required|string',
-            'field_en' => 'required|string',
-            'values_ar' => 'required|array',
-            'values_en' => 'required|array',
-        ]);
+     public function update(Request $request, $id, $field_id)
+{
+    $request->validate([
+        'field_ar' => 'required|string',
+        'field_en' => 'required|string',
+        'values_ar' => 'required|array',
+        'values_en' => 'required|array',
+        'value_ids' => 'array',
+    ]);
 
-        $field = CategoryField::findOrFail($field_id);
-        $field->update([
-            'field_ar' => $request->field_ar,
-            'field_en' => $request->field_en,
-        ]);
+    $field = CategoryField::findOrFail($field_id);
+    $field->update([
+        'field_ar' => $request->field_ar,
+        'field_en' => $request->field_en,
+    ]);
 
-        // Delete old values and add new ones
-        $field->values()->delete();
-        foreach ($request->values_ar as $index => $value_ar) {
-            $value_en = $request->values_en[$index] ?? '';
+    $submittedIds = $request->value_ids ?? [];
+    $existingIds = $field->values()->pluck('id')->toArray();
+
+    foreach ($request->values_ar as $index => $value_ar) {
+        $value_en = $request->values_en[$index] ?? '';
+        $value_id = $submittedIds[$index] ?? null;
+
+        if ($value_id) {
+            // تحديث قيمة موجودة
+            $existingValue = $field->values()->where('id', $value_id)->first();
+            if ($existingValue) {
+                $existingValue->update([
+                    'value_ar' => $value_ar,
+                    'value_en' => $value_en,
+                ]);
+            }
+        } else {
+            // إضافة قيمة جديدة
             $field->values()->create([
                 'value_ar' => $value_ar,
                 'value_en' => $value_en,
             ]);
         }
-
-        return redirect()->route('categories.fields.show', $id)->with('success', 'تم تحديث الحقل بنجاح!');
     }
+
+    return redirect()->route('categories.fields.show', $id)->with('success', 'تم تحديث الحقل بنجاح!');
+}
+
 
     public function destroy($id, $field_id)
     {

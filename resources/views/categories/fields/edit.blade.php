@@ -24,13 +24,15 @@
 
         <h4>القيم:</h4>
         <div id="values-container">
-            @foreach($field->values as $index => $value)
-                <div class="value-group mb-2">
-                    <input type="text" name="values_ar[]" class="form-control mb-2" value="{{ $value->value_ar }}" required placeholder="القيمة بالعربي">
-                    <input type="text" name="values_en[]" class="form-control mb-2" value="{{ $value->value_en }}" required placeholder="القيمة بالإنجليزي">
-                    <button type="button" class="btn btn-danger btn-sm" onclick="removeValue(this)">حذف</button>
-                </div>
-            @endforeach
+      @foreach($field->values as $index => $value)
+    <div class="value-group mb-2">
+        <input type="hidden" name="value_ids[]" value="{{ $value->id }}">
+        <input type="text" name="values_ar[]" class="form-control mb-2" value="{{ $value->value_ar }}" required placeholder="القيمة بالعربي">
+        <input type="text" name="values_en[]" class="form-control mb-2" value="{{ $value->value_en }}" required placeholder="القيمة بالإنجليزي">
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeValue(this)">حذف</button>
+    </div>
+@endforeach
+
         </div>
 
         <button type="button" class="btn btn-secondary" onclick="addValue()">إضافة قيمة جديدة</button>

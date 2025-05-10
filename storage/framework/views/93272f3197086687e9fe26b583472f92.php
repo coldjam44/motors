@@ -22,13 +22,15 @@
 
         <h4>القيم:</h4>
         <div id="values-container">
-            <?php $__currentLoopData = $field->values; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $value): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                <div class="value-group mb-2">
-                    <input type="text" name="values_ar[]" class="form-control mb-2" value="<?php echo e($value->value_ar); ?>" required placeholder="القيمة بالعربي">
-                    <input type="text" name="values_en[]" class="form-control mb-2" value="<?php echo e($value->value_en); ?>" required placeholder="القيمة بالإنجليزي">
-                    <button type="button" class="btn btn-danger btn-sm" onclick="removeValue(this)">حذف</button>
-                </div>
-            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+      <?php $__currentLoopData = $field->values; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $value): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+    <div class="value-group mb-2">
+        <input type="hidden" name="value_ids[]" value="<?php echo e($value->id); ?>">
+        <input type="text" name="values_ar[]" class="form-control mb-2" value="<?php echo e($value->value_ar); ?>" required placeholder="القيمة بالعربي">
+        <input type="text" name="values_en[]" class="form-control mb-2" value="<?php echo e($value->value_en); ?>" required placeholder="القيمة بالإنجليزي">
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeValue(this)">حذف</button>
+    </div>
+<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+
         </div>
 
         <button type="button" class="btn btn-secondary" onclick="addValue()">إضافة قيمة جديدة</button>
