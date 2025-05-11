@@ -65,5 +65,12 @@ class Ad extends Model
     return $this->hasMany(AdView::class, 'ad_id');
 }
 
+public function features()
+{
+    return $this->hasMany(AdFeature::class, 'car_ad_id')->with('value');
+}
+
+
+
 
 }

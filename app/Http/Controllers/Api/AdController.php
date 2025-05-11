@@ -23,13 +23,13 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-
+use App\Models\AdFeature;
 class AdController extends Controller
 {
 
+    
 
-
-   public function store(Request $request)
+    public function store(Request $request)
 {
     // استرجاع المستخدم من التوكن
     $token = request()->bearerToken();
@@ -68,21 +68,11 @@ class AdController extends Controller
         'car_model' => 'nullable|string|max:255',
         'fields.*.category_field_id' => 'required|exists:category_fields,id',
         'fields.*.category_field_value_id' => 'required',
-        //'fields.*.category_field_value_id' => 'required|exists:category_field_values,id',
     ]);
 
     if ($validator->fails()) {
         return response()->json(['errors' => $validator->errors()], 422);
     }
-
-    // حفظ الصورة الرئيسية مع العلامة المائية
-    $mainImage = $request->file('main_image');
-    $mainImageName = time() . '_' . $mainImage->getClientOriginalName();
-    $mainImagePath = public_path('ads/' . $mainImageName);
-
-    $image = Image::make($mainImage->getRealPath());
-$image->insert(public_path('watermark.png'), 'center');
-    $image->save($mainImagePath);
 
     // إنشاء الإعلان
     $ad = Ad::create([
@@ -98,82 +88,34 @@ $image->insert(public_path('watermark.png'), 'center');
         'phone_number' => $request->phone_number,
         'car_model' => $request->car_model,
         'status' => 'pending',
-        'main_image' => 'ads/' . $mainImageName,
+        'main_image' => $request->file('main_image')->store('ads'),
     ]);
 
-    // إنشاء إشعار للمستخدم بأن الإعلان قيد المراجعة
-    Notification::create([
-        'user_id' => $user->id,
-        'from_user_id' => null,
-        'type' => 'ad_status',
-        'message_ar' => 'إعلانك قيد المراجعة!',
-        'message_en' => 'Your ad is under review!',
-        'ad_id' => $ad->id,
-        'is_read' => false,
-    ]);
+ // إضافة المميزات الخاصة بالإعلان إذا كانت موجودة
+if ($request->has('car_options') && !empty($request->car_options)) {
+    // تحويل النص المفصول بفواصل إلى مصفوفة، وتأكد من إزالة أي مسافات أو أقواس
+    $featureIds = explode(',', $request->car_options);
 
-    // إذا كانت حالة الإعلان "approved" نرسل إشعار للمتابعين
-    if ($ad->status === 'approved') {
-        $followers = Follower::where('following_id', $user->id)->pluck('follower_id');
-        foreach ($followers as $followerId) {
-            Notification::create([
-                'user_id' => $followerId,
-                'from_user_id' => $user->id,
-                'ad_id' => $ad->id,
-                'type' => 'new_ad',
-                'message_ar' => "{$user->first_name} نشر إعلان جديد!",
-                'message_en' => "{$user->first_name} posted a new ad!",
+    // استعراض كل ID في المصفوفة
+    foreach ($featureIds as $featureId) {
+        // إزالة أي مسافات بيضاء أو أقواس حول الـ ID
+        $featureId = trim($featureId, " \t\n\r\0\x0B[]");
+
+        // التحقق من أن الـ ID هو قيمة صحيحة (عدد صحيح)
+        if (is_numeric($featureId)) {
+            // إضافة الميزة للإعلان باستخدام الـ ID
+            AdFeature::create([
+                'car_ad_id' => $ad->id,
+                'feature_id' => $featureId,
             ]);
         }
     }
-
-    // حفظ الصور الفرعية مع العلامة المائية
-    if ($request->hasFile('sub_images')) {
-        foreach ($request->file('sub_images') as $subImage) {
-            $subImageName = time() . '_' . $subImage->getClientOriginalName();
-            $subImagePath = public_path('ads/' . $subImageName);
-
-            $subImg = Image::make($subImage->getRealPath());
-            $subImg->insert(public_path('watermark.png'), 'center');
-            $subImg->save($subImagePath);
-
-            AdImage::create([
-                'ad_id' => $ad->id,
-                'image' => 'ads/' . $subImageName,
-            ]);
-        }
-    }
-
-    // حفظ الحقول المرتبطة بالإعلان
-foreach ($request->fields as $field) {
-    $categoryFieldId = $field['category_field_id'];
-    $categoryFieldValueId = $field['category_field_value_id'];
-
-    // التحقق هل القيمة رقمية (يعني ID موجود) ولا نص جديد
-    if (is_numeric($categoryFieldValueId)) {
-        $finalFieldValueId = $categoryFieldValueId;
-    } else {
-        // إنشاء قيمة جديدة إذا كانت نص
-        $newValue = CategoryFieldValue::create([
-    'category_field_id' => $categoryFieldId,
-    'value_ar' => $categoryFieldValueId,
-    'value_en' => $categoryFieldValueId, // أو تقدر ترجمه لو عايز
-    'field_type' => 'text', // Adding the 'text' field type here
-]);
-        $finalFieldValueId = $newValue->id;
-    }
- 
-    // إنشاء السجل النهائي في AdFieldValue
-    AdFieldValue::create([
-        'ad_id' => $ad->id,
-        'category_field_id' => $categoryFieldId,
-        'category_field_value_id' => $finalFieldValueId,
-    ]);
 }
-
 
     return response()->json(['message' => 'Ad created successfully', 'ad' => $ad], 201);
 }
+
+
   
 public function update(Request $request, $id)
 {
@@ -948,54 +890,60 @@ if ($request->has('max_kilometer')) {
 
     return response()->json(['message' => 'Ad status updated successfully', 'ad' => $ad], 200);
 }
+ 
 
-  
+
 public function indexbyadsid(Request $request)
 {
-    $query = Ad::with(['subImages', 'fieldValues', 'user', 'adViews']); // إضافة العلاقة adViews
+    $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user', 'adViews', 'features.value.field']);
 
-    // إضافة JOIN مع car_models واختيار الأعمدة المحددة فقط (id، value_ar، value_en)
     $query->leftJoin('car_models', 'ads.car_model', '=', 'car_models.id')
           ->select('ads.*', 'car_models.id as car_model_id', 'car_models.value_ar as car_model_ar', 'car_models.value_en as car_model_en');
 
-    // فلترة بناءً على ad_id إذا تم إرساله في الطلب
     if ($request->has('ad_id')) {
         $query->where('ads.id', $request->ad_id);
     }
 
-    // تنفيذ الاستعلام وجلب النتائج
     $ads = $query->get();
 
-    // تحويل البيانات
     $ads->transform(function ($ad) {
         $ad->main_image = $ad->main_image ? url($ad->main_image) : null;
 
-        // جلب أحدث إعلان للمستخدم
         $latestAd = Ad::where('user_id', $ad->user_id)->latest('created_at')->first();
 
-        // تحويل الصور الفرعية
         $ad->subImages->transform(function ($image) {
             $image->image = url($image->image);
             return $image;
         });
 
-     // تحويل تفاصيل الحقول
-$ad->fieldValues->transform(function ($fieldValue) {
-    return [
-        'field_id' => $fieldValue->category_field_id,
-        'field_name' => [
-            'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
-            'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
-        ],
-        'field_value_id' => $fieldValue->category_field_value_id,
-        'field_value' => [
-            'ar' => optional($fieldValue->fieldValue)->value_ar ?? 'غير معروف',
-            'en' => optional($fieldValue->fieldValue)->value_en ?? 'Unknown',
-        ],
-        'field_type' => optional($fieldValue->fieldValue)->field_type ?? 'Unknown', // تم تعديل الـ field_type هنا
-    ];
-});
+        $ad->fieldValues->transform(function ($fieldValue) {
+            return [
+                'field_id' => $fieldValue->category_field_id,
+                'field_name' => [
+                    'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
+                    'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
+                ],
+                'field_value_id' => $fieldValue->category_field_value_id,
+                'field_value' => [
+                    'ar' => optional($fieldValue->fieldValue)->value_ar ?? 'غير معروف',
+                    'en' => optional($fieldValue->fieldValue)->value_en ?? 'Unknown',
+                ],
+                'field_type' => optional($fieldValue->fieldValue)->field_type ?? 'Unknown',
+            ];
+        });
 
+        $features = $ad->features->map(function ($feature) {
+            return [
+                'feature_id' => $feature->feature_id,
+                'value_ar' => optional($feature->value)->value_ar ?? 'غير معروف',
+                'value_en' => optional($feature->value)->value_en ?? 'Unknown',
+                'field_type' => optional($feature->value->field)->type ?? 'unknown',
+                'field_name' => [
+                    'ar' => optional($feature->value->field)->field_ar ?? 'غير معروف',
+                    'en' => optional($feature->value->field)->field_en ?? 'Unknown',
+                ],
+            ];
+        });
 
         return [
             'id' => $ad->id,
@@ -1017,15 +965,46 @@ $ad->fieldValues->transform(function ($fieldValue) {
             'main_image' => $ad->main_image,
             'sub_images' => $ad->subImages,
             'details' => $ad->fieldValues,
+            'features' => $features,
             'view_count' => $ad->adViews->count(),
-            'car_model_id' => $ad->car_model_id, // إرجاع id الموديل
-            'car_model_ar' => $ad->car_model_ar, // إرجاع القيمة بالعربية
-            'car_model_en' => $ad->car_model_en, // إرجاع القيمة بالإنجليزية
+            'car_model_id' => $ad->car_model_id,
+            'car_model_ar' => $ad->car_model_ar,
+            'car_model_en' => $ad->car_model_en,
         ];
     });
 
     return response()->json(['ads' => $ads]);
 }
+
+public function updateCarOptionFeature(Request $request)
+{
+    // تحقق من البيانات المطلوبة
+    $request->validate([
+        'ad_id' => 'required|integer|exists:car_ad_features,car_ad_id',
+        'feature_id' => 'required|integer|exists:car_ad_features,feature_id',
+        'new_feature_id' => 'required|integer|exists:category_field_values,id',
+    ]);
+
+    // محاولة العثور على السجل
+    $feature = AdFeature::where('car_ad_id', $request->ad_id)
+        ->where('feature_id', $request->feature_id)
+        ->first();
+
+    if (!$feature) {
+        return response()->json(['message' => 'Feature not found for this ad.'], 404);
+    }
+
+    // تحديث قيمة الميزة
+    $feature->feature_id = $request->new_feature_id;
+    $feature->save();
+
+    return response()->json([
+        'message' => 'Car option feature updated successfully.',
+        'data' => $feature
+    ]);
+}
+
+
 
 
     public function toggleFavorite(Request $request)

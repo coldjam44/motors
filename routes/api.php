@@ -118,6 +118,11 @@ Route::post('/ads/{ad_id}/seen', [AdController::class, 'seen']);
 Route::get('/ads/popular', [AdController::class, 'indexadsusersByViews']);
 Route::get('/ads/allpopular', [AdController::class, 'indexAdsGroupedByCategory']);
 
+// update car option to another car option by use the ad id and the car option id in body use new_feature_id to add the new feature id 
+Route::post('/caroptionupdate', [AdController::class, 'updateCarOptionFeature']);
+
+
+
 Route::middleware('auth:api')->post('/ads/update/{id}', [AdController::class, 'update']);
     Route::middleware('auth:api')->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل
 
