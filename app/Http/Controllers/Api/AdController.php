@@ -67,7 +67,8 @@ class AdController extends Controller
         'fields' => 'required|array',
         'car_model' => 'nullable|string|max:255',
         'fields.*.category_field_id' => 'required|exists:category_fields,id',
-        'fields.*.category_field_value_id' => 'required|exists:category_field_values,id',
+        'fields.*.category_field_value_id' => 'required',
+        //'fields.*.category_field_value_id' => 'required|exists:category_field_values,id',
     ]);
 
     if ($validator->fails()) {
@@ -144,13 +145,32 @@ $image->insert(public_path('watermark.png'), 'center');
     }
 
     // حفظ الحقول المرتبطة بالإعلان
-    foreach ($request->fields as $field) {
-        AdFieldValue::create([
-            'ad_id' => $ad->id,
-            'category_field_id' => $field['category_field_id'],
-            'category_field_value_id' => $field['category_field_value_id'],
-        ]);
+foreach ($request->fields as $field) {
+    $categoryFieldId = $field['category_field_id'];
+    $categoryFieldValueId = $field['category_field_value_id'];
+
+    // التحقق هل القيمة رقمية (يعني ID موجود) ولا نص جديد
+    if (is_numeric($categoryFieldValueId)) {
+        $finalFieldValueId = $categoryFieldValueId;
+    } else {
+        // إنشاء قيمة جديدة إذا كانت نص
+        $newValue = CategoryFieldValue::create([
+    'category_field_id' => $categoryFieldId,
+    'value_ar' => $categoryFieldValueId,
+    'value_en' => $categoryFieldValueId, // أو تقدر ترجمه لو عايز
+    'field_type' => 'text', // Adding the 'text' field type here
+]);
+        $finalFieldValueId = $newValue->id;
     }
+ 
+    // إنشاء السجل النهائي في AdFieldValue
+    AdFieldValue::create([
+        'ad_id' => $ad->id,
+        'category_field_id' => $categoryFieldId,
+        'category_field_value_id' => $finalFieldValueId,
+    ]);
+}
+
 
     return response()->json(['message' => 'Ad created successfully', 'ad' => $ad], 201);
 }
@@ -959,21 +979,23 @@ public function indexbyadsid(Request $request)
             return $image;
         });
 
-        // تحويل تفاصيل الحقول
-        $ad->fieldValues->transform(function ($fieldValue) {
-            return [
-                'field_id' => $fieldValue->category_field_id,
-                'field_name' => [
-                    'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
-                    'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
-                ],
-                'field_value_id' => $fieldValue->category_field_value_id,
-                'field_value' => [
-                    'ar' => optional($fieldValue->fieldValue)->value_ar ?? 'غير معروف',
-                    'en' => optional($fieldValue->fieldValue)->value_en ?? 'Unknown',
-                ],
-            ];
-        });
+     // تحويل تفاصيل الحقول
+$ad->fieldValues->transform(function ($fieldValue) {
+    return [
+        'field_id' => $fieldValue->category_field_id,
+        'field_name' => [
+            'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
+            'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
+        ],
+        'field_value_id' => $fieldValue->category_field_value_id,
+        'field_value' => [
+            'ar' => optional($fieldValue->fieldValue)->value_ar ?? 'غير معروف',
+            'en' => optional($fieldValue->fieldValue)->value_en ?? 'Unknown',
+        ],
+        'field_type' => optional($fieldValue->fieldValue)->field_type ?? 'Unknown', // تم تعديل الـ field_type هنا
+    ];
+});
+
 
         return [
             'id' => $ad->id,

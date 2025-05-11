@@ -9,7 +9,8 @@ class CategoryFieldValue extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['category_field_id', 'value_ar', 'value_en'];
+    // Add 'field_type' to the fillable array
+    protected $fillable = ['category_field_id', 'value_ar', 'value_en', 'field_type'];
 
     public function field()
     {
@@ -22,8 +23,7 @@ class CategoryFieldValue extends Model
     }
 
     public function carModels()
-{
-    return $this->hasMany(CarModel::class, 'category_field_id', 'id');
-}
-
+    {
+        return $this->hasMany(CarModel::class, 'category_field_id', 'id');
+    }
 }
