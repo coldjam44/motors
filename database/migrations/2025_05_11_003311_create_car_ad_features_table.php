@@ -8,12 +8,15 @@ class CreateCarAdFeaturesTable extends Migration
 {
     public function up()
     {
-        Schema::create('car_ad_features', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('car_ad_id')->constrained()->onDelete('cascade');
-            $table->foreignId('feature_id')->constrained('category_field_values')->onDelete('cascade');
-            $table->timestamps();
-        });
+        // التحقق إذا كان الجدول موجود
+        if (!Schema::hasTable('car_ad_features')) {
+            Schema::create('car_ad_features', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('car_ad_id')->constrained()->onDelete('cascade');
+                $table->foreignId('feature_id')->constrained('category_field_values')->onDelete('cascade');
+                $table->timestamps();
+            });
+        }
     }
 
     public function down()

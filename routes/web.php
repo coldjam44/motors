@@ -69,6 +69,9 @@ Route::post('/categories/{category}/fields/store-car-model', [CategoryFieldContr
       
       Route::post('categories/{category}/fields/ensureExists', [CategoryFieldController::class, 'ensureExists'])->name('categories.fields.ensureExists');
 
+Route::post('/categories/{categoryId}/toggle-kilometers', [CategoryController::class, 'toggleKilometers'])->name('categories.toggleKilometers');
+
+
 
 });
 

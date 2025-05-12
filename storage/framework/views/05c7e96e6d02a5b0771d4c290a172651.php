@@ -1,9 +1,33 @@
 <?php $__env->startSection('content'); ?>
 <div class="container">
-    <h2>حقول الفئة: <?php echo e(App::getLocale() == 'ar' ? $category->name_ar : $category->name_en); ?></h2>
+    <h2><?php echo e(App::getLocale() == 'ar' ? 'حقول الفئة: ' . $category->name_ar : 'Category Fields: ' . $category->name_en); ?></h2>
 
-    <a href="<?php echo e(route('categories.fields.create', $category->id)); ?>" class="btn btn-primary mb-3">إضافة حقل جديد</a>
+<a href="<?php echo e(route('categories.fields.create', $category->id)); ?>" class="btn btn-primary mb-3">
+    <?php echo e(App::getLocale() == 'ar' ? 'إضافة حقل جديد' : 'Add New Field'); ?>
 
+</a>
+
+<div>
+    <!-- عرض الحالة الحالية مع الأيقونة -->
+    <p>
+        <i class="fas <?php echo e($category->has_kilometers ? 'fa-check-circle' : 'fa-times-circle'); ?>" style="color: <?php echo e($category->has_kilometers ? 'green' : 'red'); ?>;"></i>
+        <?php echo e(App::getLocale() == 'ar' ? 'حالة حقل الكيلومترات: ' : 'Kilometer Field Status: '); ?>
+
+        <?php echo e($category->has_kilometers ? (App::getLocale() == 'ar' ? 'مفعّل' : 'Enabled') : (App::getLocale() == 'ar' ? 'معطّل' : 'Disabled')); ?>
+
+    </p>
+
+    <!-- الزر لتغيير الحالة -->
+    <form action="<?php echo e(route('categories.toggleKilometers', $category->id)); ?>" method="POST">
+        <?php echo csrf_field(); ?>
+        <button type="submit" class="btn btn-primary">
+            <?php echo e($category->has_kilometers ? (App::getLocale() == 'ar' ? 'إيقاف حقل الكيلومترات' : 'Disable Kilometer Field') : (App::getLocale() == 'ar' ? 'تفعيل حقل الكيلومترات' : 'Enable Kilometer Field')); ?>
+
+        </button>
+    </form>
+</div>
+
+ 
     <table class="table table-bordered">
         <thead>
             <tr>

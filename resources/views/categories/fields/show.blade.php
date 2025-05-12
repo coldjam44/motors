@@ -2,10 +2,30 @@
 
 @section('content')
 <div class="container">
-    <h2>حقول الفئة: {{ App::getLocale() == 'ar' ? $category->name_ar : $category->name_en }}</h2>
+    <h2>{{ App::getLocale() == 'ar' ? 'حقول الفئة: ' . $category->name_ar : 'Category Fields: ' . $category->name_en }}</h2>
 
-    <a href="{{ route('categories.fields.create', $category->id) }}" class="btn btn-primary mb-3">إضافة حقل جديد</a>
+<a href="{{ route('categories.fields.create', $category->id) }}" class="btn btn-primary mb-3">
+    {{ App::getLocale() == 'ar' ? 'إضافة حقل جديد' : 'Add New Field' }}
+</a>
 
+<div>
+    <!-- عرض الحالة الحالية مع الأيقونة -->
+    <p>
+        <i class="fas {{ $category->has_kilometers ? 'fa-check-circle' : 'fa-times-circle' }}" style="color: {{ $category->has_kilometers ? 'green' : 'red' }};"></i>
+        {{ App::getLocale() == 'ar' ? 'حالة حقل الكيلومترات: ' : 'Kilometer Field Status: ' }}
+        {{ $category->has_kilometers ? (App::getLocale() == 'ar' ? 'مفعّل' : 'Enabled') : (App::getLocale() == 'ar' ? 'معطّل' : 'Disabled') }}
+    </p>
+
+    <!-- الزر لتغيير الحالة -->
+    <form action="{{ route('categories.toggleKilometers', $category->id) }}" method="POST">
+        @csrf
+        <button type="submit" class="btn btn-primary">
+            {{ $category->has_kilometers ? (App::getLocale() == 'ar' ? 'إيقاف حقل الكيلومترات' : 'Disable Kilometer Field') : (App::getLocale() == 'ar' ? 'تفعيل حقل الكيلومترات' : 'Enable Kilometer Field') }}
+        </button>
+    </form>
+</div>
+
+ 
     <table class="table table-bordered">
         <thead>
             <tr>

@@ -25,6 +25,23 @@ class CategoryController extends Controller
         //
     }
 
+ public function toggleKilometers($categoryId)
+{
+    $category = Category::findOrFail($categoryId);
+    
+    // نقلب القيمة
+    $category->has_kilometers = !$category->has_kilometers;
+    $category->save();
+
+    $message = $category->has_kilometers 
+        ? 'تم تفعيل حقل الكيلومترات.' 
+        : 'تم تعطيل حقل الكيلومترات.';
+
+    return redirect()->back()->with('message', $message);
+}
+
+
+
     /**
      * Store a newly created resource in storage.
      */
