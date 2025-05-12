@@ -108,7 +108,7 @@ Route::get('/car-models/by-make/{makeId}', [CarModelController::class, 'getByMak
 
 
 Route::middleware('auth:api')->group(function () {
-    Route::get('/ads', [adsbyadsid::class, 'index']);
+    Route::get('/ads', [AdController::class, 'index']);
 });
 
 Route::post('/ads/{id}/status', [AdController::class, 'updateStatus']);

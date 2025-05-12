@@ -180,33 +180,43 @@ if ($request->hasFile('sub_images')) {
 
     
 
-
-     // حفظ الحقول المرتبطة بالإعلان
-   foreach ($request->fields as $field) {
-    // تحقق إذا كانت القيمة النصية وليست رقمًا
+// حفظ الحقول المرتبطة بالإعلان
+foreach ($request->fields as $field) {
+    // تحقق إذا كانت القيمة نصية
     if (!is_numeric($field['category_field_value_id'])) {
-        // إضافة القيمة النصية في جدول category_field_values إذا لم تكن موجودة
+        // إضافة القيمة النصية
         $categoryFieldValue = CategoryFieldValue::firstOrCreate([
             'category_field_id' => $field['category_field_id'],
-            'value_ar' => $field['category_field_value_id'],  // القيمة النصية
-            'value_en' => $field['category_field_value_id'],  // يمكن تعديل هذا حسب الحاجة
-            'field_type' => 'text',  // نوع الحقل كـ نص
+            'value_ar' => $field['category_field_value_id'],
+            'value_en' => $field['category_field_value_id'],
+            'field_type' => 'text',
         ]);
-
-        // استخدم الـ ID الذي تم إنشاؤه
-        $categoryFieldValueId = $categoryFieldValue->id;
     } else {
-        // إذا كانت القيمة عبارة عن رقم، استخدمها كما هي
-        $categoryFieldValueId = $field['category_field_value_id'];
+        // لو القيمة رقمية، نحاول نلاقيها
+        $categoryFieldValue = CategoryFieldValue::find($field['category_field_value_id']);
+
+        // لو مش موجودة، ننشئها كأنها نص باستخدام الرقم كـ نص
+        if (!$categoryFieldValue) {
+            $categoryFieldValue = CategoryFieldValue::create([
+                'category_field_id' => $field['category_field_id'],
+                'value_ar' => $field['category_field_value_id'],
+                'value_en' => $field['category_field_value_id'],
+                'field_type' => 'text',
+            ]);
+        }
     }
 
-    // الآن قم بإنشاء السجل في جدول ad_field_values باستخدام category_field_value_id
+    // استخدام ID النهائي
+    $categoryFieldValueId = $categoryFieldValue->id;
+
+    // إنشاء سجل الربط
     AdFieldValue::create([
         'ad_id' => $ad->id,
         'category_field_id' => $field['category_field_id'],
         'category_field_value_id' => $categoryFieldValueId,
     ]);
 }
+
 
 
  // إضافة المميزات الخاصة بالإعلان إذا كانت موجودة
