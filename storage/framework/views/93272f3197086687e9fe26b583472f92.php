@@ -52,10 +52,79 @@
         `;
         container.appendChild(div);
     }
+ function removeValue(button) {
+    // العثور على العنصر الأب الذي يحتوي على المدخلات
+    var parentElement = button.parentElement;
 
-    function removeValue(button) {
-        button.parentElement.remove();
+    // الحصول على القيم من الحقول المدخلة
+    var valueAr = parentElement.querySelector('input[name="values_ar[]"]').value;
+    var valueEn = parentElement.querySelector('input[name="values_en[]"]').value;
+    var valueId = parentElement.querySelector('input[name="value_ids[]"]').value;
+
+    // طباعة القيم في الكونسول
+  //  console.log("القيمة بالعربي: " + valueAr);
+   // console.log("القيمة بالإنجليزي: " + valueEn);
+   // console.log("معرف القيمة: " + valueId);
+
+    // محاولة الحصول على CSRF Token من meta أو input
+    var csrfToken = null;
+
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta) {
+        csrfToken = csrfMeta.getAttribute('content');
+    } else {
+        var csrfInput = document.querySelector('input[name="_token"]');
+        if (csrfInput) {
+            csrfToken = csrfInput.value;
+        }
     }
+
+    if (!csrfToken) {
+        console.error("⚠️ CSRF Token غير موجود!");
+        return;
+    }
+
+    // طباعة الـ CSRF Token فقط
+    console.log("CSRF Token: " + csrfToken);
+
+    // التوقف هنا حسب طلبك
+
+
+fetch(`/category-field-values/${valueId}/delete`, {
+    method: 'DELETE',
+    headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken
+    },
+    body: JSON.stringify({
+        id: valueId
+    })
+})
+.then(response => response.text())  // تحويل الاستجابة إلى نص
+.then(data => {
+    console.log("Response Text:", data);  // طباعة الاستجابة الفعلية
+    try {
+        let jsonResponse = JSON.parse(data); // حاول تحليل الاستجابة كـ JSON
+        if (jsonResponse.success) {
+            console.log("تم حذف القيمة بنجاح.");
+        } else {
+            console.log("حدث خطأ أثناء الحذف.");
+        }
+    } catch (error) {
+        console.log("استجابة غير صالحة:", error);
+    }
+})
+.catch(error => {
+    console.log("خطأ في الاتصال بالخادم:", error);
+});
+// حذف العنصر من الصفحة
+    parentElement.remove();
+
+
+}
+
+
+
 </script>
 <?php $__env->stopSection(); ?>
 

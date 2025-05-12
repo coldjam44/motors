@@ -10,6 +10,7 @@ use App\Models\city;
 use App\Models\CategoryFieldValue;
 use App\Models\Follower;
 use Intervention\Image\Facades\Image;
+use Illuminate\Support\Facades\DB;
 
 use App\Models\AdImage;
 use App\Models\AdView;
@@ -74,6 +75,14 @@ class AdController extends Controller
         return response()->json(['errors' => $validator->errors()], 422);
     }
 
+     // حفظ الصورة الرئيسية مع العلامة المائية
+    $mainImage = $request->file('main_image');
+    $mainImageName = time() . '_' . $mainImage->getClientOriginalName();
+    $mainImagePath = public_path('ads/' . $mainImageName);
+    $image = Image::make($mainImage->getRealPath());
+$image->insert(public_path('watermark.png'), 'center');
+    $image->save($mainImagePath);
+
     // إنشاء الإعلان
     $ad = Ad::create([
         'user_id' => $user->id,
@@ -88,11 +97,120 @@ class AdController extends Controller
         'phone_number' => $request->phone_number,
         'car_model' => $request->car_model,
         'status' => 'pending',
-        'main_image' => $request->file('main_image')->store('ads'),
+        'main_image' => 'ads/' . $mainImageName,
     ]);
 
+ // إنشاء إشعار للمستخدم بأن الإعلان قيد المراجعة
+    Notification::create([
+        'user_id' => $user->id,
+        'from_user_id' => null,
+        'type' => 'ad_status',
+        'message_ar' => 'إعلانك قيد المراجعة!',
+        'message_en' => 'Your ad is under review!',
+        'ad_id' => $ad->id,
+        'is_read' => false,
+    ]);
+
+    // إذا كانت حالة الإعلان "approved" نرسل إشعار للمتابعين
+    if ($ad->status === 'approved') {
+        $followers = Follower::where('following_id', $user->id)->pluck('follower_id');
+        foreach ($followers as $followerId) {
+            Notification::create([
+                'user_id' => $followerId,
+                'from_user_id' => $user->id,
+                'ad_id' => $ad->id,
+                'type' => 'new_ad',
+                'message_ar' => "{$user->first_name} نشر إعلان جديد!",
+                'message_en' => "{$user->first_name} posted a new ad!",
+            ]);
+        }
+    }
+ 
+
+if ($request->hasFile('sub_images')) {
+    $subImages = $request->file('sub_images');
+
+    // إذا كانت الصور عبارة عن مصفوفة
+    if (is_array($subImages)) {
+        // تسجيل أسماء الصور في الديبوق
+        $debugMessages[] = 'sub_images files: ' . implode(', ', array_map(function($file) {
+            return $file->getClientOriginalName();
+        }, $subImages));
+
+        foreach ($subImages as $subImage) {
+            // إضافة الوقت وكلمة "sub" لاسم الصورة
+            $subImageName = 'sub_' . time() . '_' . $subImage->getClientOriginalName();
+            $subImagePath = public_path('ads/' . $subImageName);
+
+            // إضافة العلامة المائية
+            $subImg = Image::make($subImage->getRealPath());
+            $subImg->insert(public_path('watermark.png'), 'center');
+            $subImg->save($subImagePath);
+
+            // حفظ الصورة في قاعدة البيانات
+            AdImage::create([
+                'ad_id' => $ad->id,
+                'image' => 'ads/' . $subImageName,
+            ]);
+
+            // إضافة رسالة للديبوق
+            $debugMessages[] = 'Saving sub image: ' . $subImageName;
+        }
+    } else {
+        // في حالة رفع صورة واحدة فقط
+        $fileName = $subImages->getClientOriginalName();
+        $debugMessages[] = 'Only one sub_image uploaded: ' . $fileName;
+
+        // إضافة الوقت وكلمة "sub" لاسم الصورة
+        $subImageName = 'sub_' . time() . '_' . $fileName;
+        $subImagePath = public_path('ads/' . $subImageName);
+
+        // إضافة العلامة المائية
+        $subImg = Image::make($subImages->getRealPath());
+        $subImg->insert(public_path('watermark.png'), 'center');
+        $subImg->save($subImagePath);
+
+        // حفظ الصورة في قاعدة البيانات
+        AdImage::create([
+            'ad_id' => $ad->id,
+            'image' => 'ads/' . $subImageName,
+        ]);
+    }
+}
+
+    
+
+
+     // حفظ الحقول المرتبطة بالإعلان
+   foreach ($request->fields as $field) {
+    // تحقق إذا كانت القيمة النصية وليست رقمًا
+    if (!is_numeric($field['category_field_value_id'])) {
+        // إضافة القيمة النصية في جدول category_field_values إذا لم تكن موجودة
+        $categoryFieldValue = CategoryFieldValue::firstOrCreate([
+            'category_field_id' => $field['category_field_id'],
+            'value_ar' => $field['category_field_value_id'],  // القيمة النصية
+            'value_en' => $field['category_field_value_id'],  // يمكن تعديل هذا حسب الحاجة
+            'field_type' => 'text',  // نوع الحقل كـ نص
+        ]);
+
+        // استخدم الـ ID الذي تم إنشاؤه
+        $categoryFieldValueId = $categoryFieldValue->id;
+    } else {
+        // إذا كانت القيمة عبارة عن رقم، استخدمها كما هي
+        $categoryFieldValueId = $field['category_field_value_id'];
+    }
+
+    // الآن قم بإنشاء السجل في جدول ad_field_values باستخدام category_field_value_id
+    AdFieldValue::create([
+        'ad_id' => $ad->id,
+        'category_field_id' => $field['category_field_id'],
+        'category_field_value_id' => $categoryFieldValueId,
+    ]);
+}
+
+
  // إضافة المميزات الخاصة بالإعلان إذا كانت موجودة
-if ($request->has('car_options') && !empty($request->car_options)) {
+    if ($request->has('car_options') && !empty($request->car_options)) {
     // تحويل النص المفصول بفواصل إلى مصفوفة، وتأكد من إزالة أي مسافات أو أقواس
     $featureIds = explode(',', $request->car_options);
 
@@ -110,7 +228,7 @@ if ($request->has('car_options') && !empty($request->car_options)) {
             ]);
         }
     }
-}
+    }
 
     return response()->json(['message' => 'Ad created successfully', 'ad' => $ad], 201);
 }
@@ -214,6 +332,32 @@ public function update(Request $request, $id)
             ]);
         }
     }
+
+// إذا كانت car_options موجودة في الطلب وليست فارغة
+if ($request->has('car_options') && !empty($request->car_options)) {
+    // تحويل النص المفصول بفواصل إلى مصفوفة
+    $featureIds = explode(',', $request->car_options);
+
+    // حذف المميزات القديمة المرتبطة بالإعلان
+    DB::table('car_ad_features')->where('car_ad_id', $ad->id)->delete();
+
+    // استعراض كل feature_id في المصفوفة
+    foreach ($featureIds as $featureId) {
+        // إزالة أي مسافات بيضاء أو أقواس حول الـ ID
+        $featureId = trim($featureId, " \t\n\r\0\x0B[]");
+
+        // التحقق من أن الـ ID هو قيمة صحيحة (عدد صحيح)
+        if (is_numeric($featureId)) {
+            // إضافة الميزة للإعلان باستخدام الـ feature_id
+            DB::table('car_ad_features')->insert([
+                'car_ad_id' => $ad->id,
+                'feature_id' => $featureId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+    }
+}
 
     // Update fields if provided
     if ($request->has('fields')) {
@@ -915,6 +1059,7 @@ public function indexbyadsid(Request $request)
             $image->image = url($image->image);
             return $image;
         });
+        
 
         $ad->fieldValues->transform(function ($fieldValue) {
             return [

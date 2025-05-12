@@ -49,12 +49,11 @@ Route::group(
                   // Route to delete a car model
 Route::delete('/car-models/{id}', [CarModelController::class, 'destroy'])->name('carModel.delete');
 
-
+ Route::delete('/category-field-values/{valueId}/delete', [CategoryFieldController::class, 'deleteValue']);
             Route::get('/categories/{id}/fields/create', [CategoryFieldController::class, 'create'])->name('categories.fields.create'); // إضافة
             Route::post('/categories/{id}/fields/store', [CategoryFieldController::class, 'store'])->name('categories.fields.store'); // تخزين
             Route::get('/categories/{id}/fields', [CategoryFieldController::class, 'show'])->name('categories.fields.show');
 
- 
 // إضافة مسار لحفظ الموديلات
 Route::post('/categories/{category}/fields/store-car-model', [CategoryFieldController::class, 'storeCarModel'])
     ->name('categories.fields.store-car-model');

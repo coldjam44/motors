@@ -5,7 +5,7 @@ use App\Models\Category;
 use Illuminate\Http\Request;
 use App\Models\CategoryField;
 use App\Models\CarModel;
-
+use App\Models\CategoryFieldValue;
 class CategoryFieldController extends Controller
 {
     public function ensureExists($categoryId, Request $request)
@@ -123,6 +123,20 @@ class CategoryFieldController extends Controller
 
     return redirect()->route('categories.fields.show', $id)->with('success', 'تم تحديث الحقل بنجاح!');
 }
+
+public function deleteValue($valueId)
+{
+    try {
+        // تأكد من أن الكلاس مستورد بشكل صحيح
+        $value = CategoryFieldValue::findOrFail($valueId);
+        $value->delete();
+        return response()->json(['success' => true], 200);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+    }
+}
+
+
 
 
     public function destroy($id, $field_id)
