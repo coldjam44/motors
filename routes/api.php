@@ -39,6 +39,9 @@ Route::middleware('auth:api')->post('/logout', [UserauthController::class, 'logo
 
 Route::middleware('auth:api')->get('/me', [UserauthController::class, 'me']);
 
+Route::get('listUsers', [UserauthController::class, 'listUsers']); // GET request to list users
+
+
 Route::post('/forgot-password', [ResetPasswordController::class, 'sendResetCode']);
 Route::post('/verify-code', [ResetPasswordController::class, 'verifyCode']);
 Route::middleware('auth:api')->post('/reset-password', [ResetPasswordController::class, 'resetPassword']);
@@ -105,7 +108,7 @@ Route::get('/car-models/by-make/{makeId}', [CarModelController::class, 'getByMak
 
 
 Route::middleware('auth:api')->group(function () {
-    Route::get('/ads', [AdController::class, 'index']);
+    Route::get('/ads', [adsbyadsid::class, 'index']);
 });
 
 Route::post('/ads/{id}/status', [AdController::class, 'updateStatus']);

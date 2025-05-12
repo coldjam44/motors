@@ -340,5 +340,15 @@ $user->save();
     ]);
 }
 
+public function listUsers(Request $request)
+{
+    $users = Userauth::all(); // Get all users
+
+    return response()->json([
+        'message' => 'Users list retrieved successfully',
+        'users' => $users,
+    ]);
+}
+
 
 }
