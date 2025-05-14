@@ -15,18 +15,32 @@ class CategoryFieldController extends Controller
 {
     $category = Category::with('fields.values')->findOrFail($categoryId);
 
-    // ترتيب الحقول بحيث يكون "Model Year" في الفهرس 0 و "Make" في الفهرس 1
+    // Ensure "Model Year" and "Make" are always included
     $fields = $category->fields->sortBy(function ($field) {
         if ($field->field_en === 'Model Year') return 0;
         if ($field->field_en === 'Make') return 1;
-             // if ($field->field_en === 'Kilometers') return 2;
+        return 2; // Other fields come after
+    })->values(); // Reset indexes after sorting
 
-        return 2; // باقي الحقول تأتي بعدهم
-    })->values(); // إعادة ضبط الفهارس بعد الفرز
+    // Add "Model Year" and "Make" if they don't exist
+    $requiredFields = ['Model Year', 'Make'];
+    foreach ($requiredFields as $requiredField) {
+        if (!$fields->contains('field_en', $requiredField)) {
+            $fields->push([
+                'field_en' => $requiredField,
+                'field_ar' => $requiredField === 'Model Year' ? 'سنة الصنع' : 'الشركة المصنعة',
+                'values' => [], // No values
+            ]);
+        }
+    }
 
     return response()->json([
         'success' => true,
-        'data' => $fields
+        'data' => $fields->sortBy(function ($field) {
+            if ($field['field_en'] === 'Model Year') return 0;
+            if ($field['field_en'] === 'Make') return 1;
+            return 2;
+        })->values() // Reset indexes after adding required fields
     ]);
 }
 

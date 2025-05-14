@@ -14,8 +14,33 @@ class CategoryController extends Controller
      */
     public function index()
     {
-        $categories = Category::all();
+        $customOrder = [
+            1 => 'Cars',
+            3 => 'Classic Cars',
+            10 => 'Number Plates',
+            5 => 'Bikes',
+            7 => 'Jet Ski',
+            8 => 'Marine Engine',
+            2 => 'Boot & Yacht',
+            9 => 'Heavy Machinery',
+            13 => 'Rent a Car',
+            14 => 'Taxi on Apps',
+            11 => 'Spare Parts',
+            12 => 'Accessories',
+            15 => 'Service and Repair',
+            6 => 'Trailers',
+            16 => 'Scrap',
+        ];
 
+        // Extract the IDs from the custom order
+        $ids = array_keys($customOrder);
+
+        // Filter and order categories by IDs
+        $categories = Category::whereIn('id', $ids)
+            ->orderByRaw('FIELD(id, ' . implode(',', $ids) . ')')
+            ->get();
+
+        // Transform the image URLs
         $categories->transform(function ($category) {
             $category->image = url('categorys/' . $category->image);
             return $category;
