@@ -1329,4 +1329,22 @@ class AdController extends Controller
             }),
         ]);
     }
+
+    public function stats()
+    {
+        $totalAds = \App\Models\Ad::count();
+
+        $statusCounts = \App\Models\Ad::select('status', \DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        return response()->json([
+            'total_ads' => $totalAds,
+            'status_counts' => [
+                'pending' => $statusCounts->get('pending', 0),
+                'approved' => $statusCounts->get('approved', 0),
+                'rejected' => $statusCounts->get('rejected', 0),
+            ],
+        ]);
+    }
 }

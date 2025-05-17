@@ -65,55 +65,67 @@ class UserauthController extends Controller
     // }
 
 
+ public function register(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'first_name' => 'required|string|max:255',
+        'last_name' => 'required|string|max:255',
+        'email' => 'required|email|unique:userauths,email',
+        'phone_number' => 'required|unique:userauths,phone_number',
+        'password' => 'required|min:6|confirmed',
+        'role' => 'nullable|in:admin,user',
+    ]);
 
-    public function register(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:userauths,email',
-            'phone_number' => 'required|unique:userauths,phone_number',
-            'password' => 'required|min:6|confirmed',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $user = Userauth::create([
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'email' => $request->email,
-            'phone_number' => $request->phone_number,
-            'password' => Hash::make($request->password),
-        ]);
-
-        // إنشاء التوكن JWT
-        $token = JWTAuth::fromUser($user);
-
-        return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user,
-            'token' => $token, // إرجاع التوكن للمستخدم
-        ], 201);
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
     }
 
-  public function login(Request $request)
+    $role = $request->role ?? 'user';
+
+    $user = Userauth::create([
+        'first_name' => $request->first_name,
+        'last_name' => $request->last_name,
+        'email' => $request->email,
+        'phone_number' => $request->phone_number,
+        'password' => Hash::make($request->password),
+        'role' => $role,
+    ]);
+
+    $token = JWTAuth::fromUser($user);
+
+    $message = 'User registered successfully';
+    if ($role === 'user' && !$request->has('role')) {
+        $message .= ' - regular user by default / مستخدم عادي تلقائياً';
+    }
+
+    return response()->json([
+        'message' => $message,
+        'user' => $user,
+        'token' => $token,
+    ], 201);
+}
+
+
+   public function login(Request $request)
 {
     $request->validate([
         'email' => 'required|email',
         'password' => 'required',
-        'remember_me' => 'nullable|boolean', // إضافة هذا السطر للتأكد من الخيار
+        'remember_me' => 'nullable|boolean',
     ]);
 
     $user = Userauth::where('email', $request->email)->first();
 
     if (!$user || !Hash::check($request->password, $user->password)) {
-        return response()->json(['message' => 'Invalid credentials'], 401);
+        return response()->json(['message' => 'Invalid credentials | بيانات الدخول غير صحيحة'], 401);
     }
 
-    // تحديد مدة صلاحية التوكن بناءً على خيار "remember me"
-    $ttl = $request->remember_me ? 0 : 3600; // 0 تعني التوكن يدوم للأبد، 3600 تعني 1 ساعة
+    // مثال لو حبيت تضيف حظر المستخدم بعدين:
+     if ($user->is_blocked) {
+         return response()->json(['message' => 'Your account is blocked | حسابك محظور'], 403);
+     }
+
+    $ttl = $request->remember_me ? 0 : 3600;
 
     $token = JWTAuth::fromUser($user, ['exp' => now()->addSeconds($ttl)->timestamp]);
     $authUser = $user;
@@ -143,13 +155,12 @@ class UserauthController extends Controller
     $followers_count = Follower::where('following_id', $user->id)->count();
     $following_count = Follower::where('follower_id', $user->id)->count();
 
-    // 👇 قائمة الأشخاص اللي المستخدم متابعهم (ID فقط)
     $following = Follower::where('follower_id', $user->id)
         ->pluck('following_id')
         ->toArray();
 
     return response()->json([
-        'message' => 'Login successful',
+        'message' => 'Login successful | تم تسجيل الدخول بنجاح',
         'token' => $token,
         'user' => [
             'id' => $user->id,
@@ -165,9 +176,10 @@ class UserauthController extends Controller
             'following_count' => $following_count,
         ],
         'followers' => $followers,
-        'following' => $following, // ✅ إضافة قائمة المتابَعين
+        'following' => $following,
     ]);
 }
+
 
   public function logout(Request $request)
 {
@@ -340,15 +352,76 @@ $user->save();
     ]);
 }
 
-public function listUsers(Request $request)
+ 
+ public function listUsers(Request $request)
 {
-    $users = Userauth::all(); // Get all users
+    $publicPath = public_path(); // full path to public
+
+    // استخدم withCount لجلب عدد الإعلانات
+    $users = Userauth::withCount('ads')->get()->map(function ($user) use ($publicPath) {
+        // دالة البحث عن الصورة
+        $findImagePath = function ($filename) use ($publicPath) {
+            $results = File::allFiles($publicPath);
+            foreach ($results as $file) {
+                if ($file->getFilename() === $filename) {
+                    $relativePath = str_replace($publicPath, '', $file->getPathname());
+                    return asset(trim($relativePath, '/\\'));
+                }
+            }
+            return null;
+        };
+
+        // تحديث الصور
+        $user->profile_image = $user->profile_image
+            ? $findImagePath($user->profile_image)
+            : null;
+
+        $user->cover_image = $user->cover_image
+            ? $findImagePath($user->cover_image)
+            : null;
+
+        return $user;
+    });
 
     return response()->json([
         'message' => 'Users list retrieved successfully',
         'users' => $users,
     ]);
 }
+
+
+
+public function blockUser(Request $request)
+{
+    $request->validate([
+        'id' => 'required|integer|exists:userauths,id',
+    ]);
+
+    $user = Userauth::find($request->id);
+
+    if (!$user) {
+        return response()->json(['message' => 'User not found | المستخدم غير موجود'], 404);
+    }
+
+    $user->is_blocked = !$user->is_blocked;
+    $user->save();
+
+    $message = $user->is_blocked
+        ? 'User blocked successfully | تم الحظر'
+        : 'User unblocked successfully | تم إلغاء الحظر';
+
+    return response()->json([
+        'message' => $message,
+        'user' => [
+            'id' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+            'is_blocked' => $user->is_blocked,
+        ],
+    ]);
+}
+
 
 
 }

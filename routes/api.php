@@ -39,7 +39,7 @@ Route::middleware('auth:api')->post('/logout', [UserauthController::class, 'logo
 
 Route::middleware('auth:api')->get('/me', [UserauthController::class, 'me']);
 
-Route::get('listUsers', [UserauthController::class, 'listUsers']); // GET request to list users
+Route::middleware(['auth:api', 'is.admin'])->get('listUsers', [UserauthController::class, 'listUsers']);
 
 
 Route::post('/forgot-password', [ResetPasswordController::class, 'sendResetCode']);
@@ -111,8 +111,8 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/ads', [AdController::class, 'index']);
 });
 
-Route::post('/ads/{id}/status', [AdController::class, 'updateStatus']);
-
+//Route::post('/ads/{id}/status', [AdController::class, 'updateStatus']);
+Route::middleware(['auth:api', 'is.admin'])->post('/ads/{id}/status', [AdController::class, 'updateStatus']); 
 Route::get('/adss', [AdController::class, 'indexadsusers']); // ✅ جميع الإعلانات
 Route::get('/search', [AdController::class, 'search']);
 Route::get('/adsbyuserid', [AdController::class, 'indexbyuserid']);
@@ -127,8 +127,10 @@ Route::post('/caroptionupdate', [AdController::class, 'updateCarOptionFeature'])
 
 
 Route::middleware('auth:api')->post('/ads/update/{id}', [AdController::class, 'update']);
-    Route::middleware('auth:api')->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل
+  //  Route::middleware('auth:api')->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل
 
+
+Route::middleware(['auth:api', 'is.admin'])->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل 
 
 Route::delete('/ads/{id}', [AdController::class, 'destroy'])->middleware('auth:api');
 
@@ -150,4 +152,10 @@ Route::middleware('auth:api')->group(function () {
 
 });
 
-
+// هذا الراوت محمي بوسطائين (middleware):
+// 1. 'auth:api' للتأكد من أن المستخدم مسجل دخول عبر API token.
+// 2. 'is.admin' للتأكد من أن المستخدم أدمين فقط.
+// فقط الأدمين يمكنه استدعاء دالة blockUser لتبديل حالة الحظر للمستخدم حسب الـ id.
+Route::middleware(['auth:api', 'is.admin'])->post('blockUser', [UserauthController::class, 'blockUser']);
+// إرجاع إحصائيات عامة عن الإعلانات: العدد الكلي وعدد الإعلانات حسب الحالة (pending, approved, rejected)
+Route::middleware(['auth:api', 'is.admin'])->get('/ads/stats', [AdController::class, 'stats']);

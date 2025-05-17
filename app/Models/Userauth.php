@@ -29,7 +29,7 @@ class Userauth extends Authenticatable implements JWTSubject
         'last_name',
         'email',
         'phone_number',
-        'password', 'profile_image', 'cover_image'
+        'password', 'profile_image', 'cover_image', 'role', 'is_blocked'
     ];
 
     protected $hidden = [
