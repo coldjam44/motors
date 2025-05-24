@@ -76,6 +76,35 @@ class AdController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+
+        // افتراضياً نستخدم ID المستخدم الحالي
+        $adUserId = $user->id;
+
+        // إذا تم تمرير user_id في الطلب
+        if ($request->has('user_id')) {
+
+            // فقط الإدمن يقدر يحدد user_id
+            if ($user->role !== 'admin') {
+                return response()->json([
+                    'message_ar' => 'فقط المدراء يمكنهم تعيين الإعلانات لمستخدمين آخرين',
+                    'message_en' => 'Only admins can assign ads to other users'
+                ], 403);
+            }
+
+            // التحقق من أن user_id موجود
+            $requestedUser = Userauth::find($request->user_id);
+            if (!$requestedUser) {
+                return response()->json([
+                    'message_ar' => 'المستخدم المحدد غير موجود',
+                    'message_en' => 'The provided user_id is invalid'
+                ], 422);
+            }
+
+            // نستخدم الـ user_id المحدد من قبل الإدمن
+            $adUserId = $requestedUser->id;
+        }
+
+
         // حفظ الصورة الرئيسية مع العلامة المائية وتغيير الأبعاد
         $mainImage = $request->file('main_image');
         $mainImageName = time() . '_' . $mainImage->getClientOriginalName();
@@ -91,7 +120,7 @@ class AdController extends Controller
 
         // إنشاء الإعلان
         $ad = Ad::create([
-            'user_id' => $user->id,
+            'user_id' => $adUserId,
             'category_id' => $request->category_id,
             'country_id' => $request->country_id,
             'city_id' => $request->city_id,
@@ -108,7 +137,7 @@ class AdController extends Controller
 
         // إنشاء إشعار للمستخدم بأن الإعلان قيد المراجعة
         Notification::create([
-            'user_id' => $user->id,
+            'user_id' => $adUserId,
             'from_user_id' => null,
             'type' => 'ad_status',
             'message_ar' => 'إعلانك قيد المراجعة!',
@@ -160,42 +189,41 @@ class AdController extends Controller
 
 
 
-        // حفظ الحقول المرتبطة بالإعلان
         foreach ($request->fields as $field) {
-            // تحقق إذا كانت القيمة نصية
-            if (!is_numeric($field['category_field_value_id'])) {
-                // إضافة القيمة النصية
+            $categoryField = CategoryField::find($field['category_field_id']);
+
+            // تأكد أن الحقل موجود
+            if (!$categoryField) {
+                continue;
+            }
+
+            // لو الحقل من نوع select أو dropdown → نتوقع ID موجود
+            if ($categoryField->input_type === 'select') {
+                $categoryFieldValue = CategoryFieldValue::find($field['category_field_value_id']);
+
+                if (!$categoryFieldValue) {
+                    return response()->json([
+                        'message' => 'القيمة المحددة غير موجودة لهذا الحقل',
+                        'field_id' => $field['category_field_id']
+                    ], 422);
+                }
+            } else {
+                // حقل نصي → خزّن القيمة كـ نص حتى لو كانت رقم
                 $categoryFieldValue = CategoryFieldValue::firstOrCreate([
                     'category_field_id' => $field['category_field_id'],
                     'value_ar' => $field['category_field_value_id'],
                     'value_en' => $field['category_field_value_id'],
                     'field_type' => 'text',
                 ]);
-            } else {
-                // لو القيمة رقمية، نحاول نلاقيها
-                $categoryFieldValue = CategoryFieldValue::find($field['category_field_value_id']);
-
-                // لو مش موجودة، ننشئها كأنها نص باستخدام الرقم كـ نص
-                if (!$categoryFieldValue) {
-                    $categoryFieldValue = CategoryFieldValue::create([
-                        'category_field_id' => $field['category_field_id'],
-                        'value_ar' => $field['category_field_value_id'],
-                        'value_en' => $field['category_field_value_id'],
-                        'field_type' => 'text',
-                    ]);
-                }
             }
 
-            // استخدام ID النهائي
-            $categoryFieldValueId = $categoryFieldValue->id;
-
-            // إنشاء سجل الربط
             AdFieldValue::create([
                 'ad_id' => $ad->id,
                 'category_field_id' => $field['category_field_id'],
-                'category_field_value_id' => $categoryFieldValueId,
+                'category_field_value_id' => $categoryFieldValue->id,
             ]);
         }
+
 
 
 
@@ -219,6 +247,23 @@ class AdController extends Controller
                 }
             }
         }
+
+
+        // بعد إنشاء الإعلان
+        $admins = Userauth::where('role', 'admin')->get();
+
+        foreach ($admins as $admin) {
+            Notification::create([
+                'user_id' => $admin->id,
+                'from_user_id' => $user->id,  // المستخدم اللي أنشأ الإعلان
+                'ad_id' => $ad->id,
+                'type' => 'admin_new_ad', // نوع جديد مخصص للإدمنز
+                'message_ar' => "تم إنشاء إعلان جديد بعنوان: " . $ad->title,
+                'message_en' => "A new ad has been created titled: " . $ad->title,
+                'is_read' => false,
+            ]);
+        }
+
 
         return response()->json(['message' => 'Ad created successfully', 'ad' => $ad], 201);
     }
@@ -306,6 +351,7 @@ class AdController extends Controller
             $image->insert(public_path('watermark.png'), 'center'); // إضافة العلامة المائية
             $image->save($mainImagePath);
 
+            $ad->status = 'pending';
             $ad->main_image = 'ads/' . $mainImageName;
             $ad->save();
         }
@@ -369,31 +415,30 @@ class AdController extends Controller
             AdFieldValue::where('ad_id', $ad->id)->delete();
 
             foreach ($request->fields as $field) {
-                // التعامل مع القيمة سواء كانت رقم أو نص
-                if (!is_numeric($field['category_field_value_id'])) {
-                    // إذا كانت القيمة نصية، نحاول ننشئها
+                $categoryField = CategoryField::find($field['category_field_id']);
+
+                if (!$categoryField) {
+                    continue; // إذا الحقل غير موجود، تجاهله
+                }
+
+                if ($categoryField->input_type === 'select') {
+                    $categoryFieldValue = CategoryFieldValue::find($field['category_field_value_id']);
+
+                    if (!$categoryFieldValue) {
+                        return response()->json([
+                            'message' => 'القيمة المحددة غير موجودة لهذا الحقل',
+                            'field_id' => $field['category_field_id']
+                        ], 422);
+                    }
+                } else {
                     $categoryFieldValue = CategoryFieldValue::firstOrCreate([
                         'category_field_id' => $field['category_field_id'],
                         'value_ar' => $field['category_field_value_id'],
                         'value_en' => $field['category_field_value_id'],
                         'field_type' => 'text',
                     ]);
-                } else {
-                    // إذا كانت رقمية، نحاول نجيبها من الجدول
-                    $categoryFieldValue = CategoryFieldValue::find($field['category_field_value_id']);
-
-                    // لو مش موجودة، ننشئها كنص
-                    if (!$categoryFieldValue) {
-                        $categoryFieldValue = CategoryFieldValue::create([
-                            'category_field_id' => $field['category_field_id'],
-                            'value_ar' => $field['category_field_value_id'],
-                            'value_en' => $field['category_field_value_id'],
-                            'field_type' => 'text',
-                        ]);
-                    }
                 }
 
-                // حفظ العلاقة
                 AdFieldValue::create([
                     'ad_id' => $ad->id,
                     'category_field_id' => $field['category_field_id'],
@@ -402,37 +447,58 @@ class AdController extends Controller
             }
         }
 
+        if ($ad->status === 'pending') {
+            $admins = Userauth::where('role', 'admin')->get();
+            foreach ($admins as $admin) {
+                Notification::create([
+                    'user_id' => $admin->id,
+                    'from_user_id' => $user->id,
+                    'type' => 'ad_review',
+                    'message_ar' => "يوجد إعلان جديد قيد المراجعة من المستخدم {$user->first_name}",
+                    'message_en' => "A new ad is pending review from user {$user->first_name}",
+                    'ad_id' => $ad->id,
+                    'is_read' => false,
+                ]);
+            }
+
+
+            // إشعار المستخدم نفسه
+            Notification::create([
+                'user_id' => $user->id,
+                'from_user_id' => null,
+                'type' => 'ad_status',
+                'message_ar' => 'إعلانك قيد المراجعة!',
+                'message_en' => 'Your ad is under review!',
+                'ad_id' => $ad->id,
+                'is_read' => false,
+            ]);
+        }
+
 
         return response()->json(['message' => 'Ad updated successfully', 'ad' => $ad], 200);
     }
 
-
     public function destroyadmin($id)
     {
-        // استرجاع المستخدم من التوكن
-        $token = request()->bearerToken();
-        if (!$token) {
-            return response()->json(['message' => 'Token not provided'], 401);
-        }
-
         try {
             $user = JWTAuth::parseToken()->authenticate();
         } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
-            return response()->json(['message' => 'Token expired'], 401);
+            return response()->json(['message' => 'Token expired | انتهت صلاحية التوكن'], 401);
         } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
-            return response()->json(['message' => 'Invalid token'], 401);
+            return response()->json(['message' => 'Invalid token | التوكن غير صالح'], 401);
         } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
-            return response()->json(['message' => 'Token absent'], 401);
+            return response()->json(['message' => 'Token not provided | لم يتم توفير التوكن'], 401);
         }
 
-        if (!$user) {
-            return response()->json(['message' => 'Unauthorized'], 401);
+        // التحقق إن المستخدم أدمن
+        if ($user->role !== 'admin') {
+            return response()->json(['message' => 'Access denied: admin only | الوصول مرفوض: الأدمن فقط'], 403);
         }
 
         // البحث عن الإعلان
-        $ad = Ad::where('id', $id)->where('user_id', $user->id)->first();
+        $ad = Ad::find($id);
         if (!$ad) {
-            return response()->json(['message' => 'Ad not found or unauthorized'], 404);
+            return response()->json(['message' => 'Ad not found | الإعلان غير موجود'], 404);
         }
 
         // حذف الصور الفرعية
@@ -444,8 +510,9 @@ class AdController extends Controller
         // حذف الإعلان
         $ad->delete();
 
-        return response()->json(['message' => 'Ad deleted successfully'], 200);
+        return response()->json(['message' => 'Ad deleted successfully | تم حذف الإعلان بنجاح'], 200);
     }
+
 
 
 
@@ -860,8 +927,12 @@ class AdController extends Controller
 
     public function search(Request $request)
     {
-        $query = Ad::with(['subImages', 'fieldValues', 'user', 'user', 'views'])
-            ->where('status', 'approved');
+        $query = Ad::with(['subImages', 'fieldValues', 'user', 'views']);
+
+        // ✅ فلترة حسب الحالة إذا كانت موجودة
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
 
         // ✅ فلترة حسب التصنيف إذا موجود
         if ($request->filled('category_id')) {
@@ -913,6 +984,7 @@ class AdController extends Controller
                 'id' => $ad->id,
                 'category' => $ad->category->id,
                 'user_id' => $ad->user_id,
+                'country_id' => $ad->country_id,
                 'user_name' => trim(optional($ad->user)->first_name . ' ' . optional($ad->user)->last_name) ?: null,
                 'user_image' => optional($ad->user)->profile_image ? url('profile_images/' . $ad->user->profile_image) : null,
                 'user_registered_at' => optional($ad->user)->created_at ?? null,
@@ -933,6 +1005,7 @@ class AdController extends Controller
 
         return response()->json(['ads' => $ads]);
     }
+
 
 
 
@@ -1094,20 +1167,37 @@ class AdController extends Controller
 
 
             $ad->fieldValues->transform(function ($fieldValue) {
+                $field = optional($fieldValue->field);
+                $fieldValueModel = optional($fieldValue->fieldValue);
+
+                $fieldType = $fieldValueModel->field_type ?? 'Unknown';
+                $valueAr = $fieldValueModel->value_ar ?? 'غير معروف';
+                $valueEn = $fieldValueModel->value_en ?? 'Unknown';
+
+                // ✅ لو نوع الحقل text والقيمة رقمية (يعني ID لقيمة أخرى)
+                if ($fieldType === 'text' && is_numeric($valueAr)) {
+                    $realValue = \App\Models\CategoryFieldValue::find($valueAr);
+                    if ($realValue) {
+                        $valueAr = $realValue->value_ar ?? $valueAr;
+                        $valueEn = $realValue->value_en ?? $valueEn;
+                    }
+                }
+
                 return [
                     'field_id' => $fieldValue->category_field_id,
                     'field_name' => [
-                        'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
-                        'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
+                        'ar' => $field->field_ar ?? 'غير معروف',
+                        'en' => $field->field_en ?? 'Unknown',
                     ],
                     'field_value_id' => $fieldValue->category_field_value_id,
                     'field_value' => [
-                        'ar' => optional($fieldValue->fieldValue)->value_ar ?? 'غير معروف',
-                        'en' => optional($fieldValue->fieldValue)->value_en ?? 'Unknown',
+                        'ar' => $valueAr,
+                        'en' => $valueEn,
                     ],
-                    'field_type' => optional($fieldValue->fieldValue)->field_type ?? 'Unknown',
+                    'field_type' => $fieldType,
                 ];
             });
+
             $features = $ad->features->map(function ($feature) {
                 return [
                     'feature_id' => $feature->feature_id,
@@ -1288,7 +1378,7 @@ class AdController extends Controller
 
     public function getUserProfile(Request $request, $user_id)
     {
-        $authUser = JWTAuth::parseToken()->authenticate();;
+        $authUser = JWTAuth::parseToken()->authenticate();
 
         $user = Userauth::with(['followers', 'following', 'ads.subImages', 'ads.fieldValues'])->find($user_id);
 
@@ -1305,11 +1395,12 @@ class AdController extends Controller
             'last_name' => $user->last_name,
             'email' => $user->email,
             'phone_number' => $user->phone_number,
+            'is_blocked' => $user->is_blocked, // تمت الإضافة هنا
             'profile_image' => $user->profile_image ? url('profile_images/' . $user->profile_image) : null,
             'cover_image' => $user->cover_image ? url('cover_images/' . $user->cover_image) : null,
             'followers_count' => $user->followers->count(),
             'following_count' => $user->following->count(),
-            'is_following' => $isFollowing, // هل المستخدم الحالي يتابع المستخدم المستهدف؟
+            'is_following' => $isFollowing,
             'ads' => $user->ads->map(function ($ad) {
                 return [
                     'id' => $ad->id,
@@ -1317,7 +1408,6 @@ class AdController extends Controller
                     'description' => $ad->description,
                     'price' => $ad->price,
                     'kilometer' => $ad->kilometer,
-
                     'status' => $ad->status,
                     'main_image' => $ad->main_image ? url($ad->main_image) : null,
                     'sub_images' => $ad->subImages->map(fn($image) => url($image->image)),
@@ -1329,6 +1419,7 @@ class AdController extends Controller
             }),
         ]);
     }
+
 
     public function stats()
     {

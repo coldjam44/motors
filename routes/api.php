@@ -15,7 +15,7 @@ use App\Http\Controllers\Apis\BlogController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\Api\CarModelController;
-
+ 
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -159,3 +159,15 @@ Route::middleware('auth:api')->group(function () {
 Route::middleware(['auth:api', 'is.admin'])->post('blockUser', [UserauthController::class, 'blockUser']);
 // إرجاع إحصائيات عامة عن الإعلانات: العدد الكلي وعدد الإعلانات حسب الحالة (pending, approved, rejected)
 Route::middleware(['auth:api', 'is.admin'])->get('/ads/stats', [AdController::class, 'stats']);
+
+Route::middleware(['auth:api', 'is.admin'])->get('/userauths/count', [UserauthController::class, 'countUsers']);
+
+
+
+
+Route::post('/categories/{id}/toggle-kilometers', [CategoryController::class, 'toggleKilometersApi']);
+
+Route::post('/categories/{categoryId}/makes/{makeId}/models', [CategoryFieldController::class, 'storeCarModels']);
+
+Route::get('/categories/{categoryId}/makes', [CategoryController::class, 'listMakes']);
+Route::delete('/car-models/{modelId}', [CategoryFieldController::class, 'deleteCarModel']);
