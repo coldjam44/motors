@@ -12,51 +12,52 @@ use Illuminate\Support\Facades\DB;
 class CategoryFieldController extends Controller
 {
 
-
-    public function index($categoryId)
+    public function index(Request $request, $categoryId)
     {
         $category = Category::with('fields.values')->findOrFail($categoryId);
-
-        // نجهز قائمة الفيلدات الحالية
-        $fields = $category->fields->sortBy(function ($field) {
-            if ($field->field_en === 'Model Year') return 0;
-            if ($field->field_en === 'Make') return 1;
-            return 2;
-        })->values();
-
-        // الحقول المطلوبة دائمًا
+        $sort = $request->query('sort', 'en');
+        $fields = $category->fields;
+    
         $requiredFields = [
             'Model Year' => 'سنة الصنع',
             'Make' => 'الشركة المصنعة',
         ];
-
+    
         foreach ($requiredFields as $fieldEn => $fieldAr) {
             if (!$fields->contains('field_en', $fieldEn)) {
-                // ✅ إنشاء الفيلد في قاعدة البيانات
                 $newField = $category->fields()->create([
                     'field_en' => $fieldEn,
                     'field_ar' => $fieldAr,
                 ]);
-
-                // أضفه لقائمة العرض مع قيم فاضية
-                $newField->values = collect(); // قيم فاضية
+                $newField->setRelation('values', collect());
                 $fields->push($newField);
             }
         }
-
-        // ترتيب نهائي
-        $sortedFields = $fields->sortBy(function ($field) {
-            if ($field['field_en'] === 'Model Year') return 0;
-            if ($field['field_en'] === 'Make') return 1;
-            return 2;
-        })->values();
-
+    
+        // Sort values inside each field, and set the relation so it's used in JSON output
+        $fields = $fields->map(function ($field) use ($sort) {
+            $values = $field->values instanceof \Illuminate\Support\Collection
+                ? $field->values
+                : collect($field->values);
+    
+            if ($sort === 'ar') {
+                $sortedValues = $values->sortBy('value_ar')->values();
+            } else {
+                $sortedValues = $values->sortBy('value_en')->values();
+            }
+    
+            // This is the key line: override the Eloquent relationship with the sorted collection
+            $field->setRelation('values', $sortedValues);
+    
+            return $field;
+        });
+    
         return response()->json([
             'success' => true,
-            'data' => $sortedFields
+            'data' => $fields,
         ]);
     }
-
+    
 
 
 
