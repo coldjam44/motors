@@ -172,5 +172,5 @@ Route::post('/categories/{categoryId}/makes/{makeId}/models', [CategoryFieldCont
 Route::get('/categories/{categoryId}/makes', [CategoryController::class, 'listMakes']);
 Route::delete('/car-models/{modelId}', [CategoryFieldController::class, 'deleteCarModel']);
 Route::post('/categories/{categoryId}/addNewMake', [CategoryController::class, 'addNewMake']);
-Route::put('/categories/{categoryId}/editMakeById/{makeId}', [CategoryController::class, 'editMakeById']);
+Route::put('/editMakeById/{makeId}', [CategoryController::class, 'editMakeById']);
 Route::delete('/categories/{categoryId}/deleteMakeById/{makeId}', [CategoryController::class, 'deleteMakeById']);

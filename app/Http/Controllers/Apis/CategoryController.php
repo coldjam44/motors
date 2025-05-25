@@ -6,6 +6,7 @@ use App\Models\Category;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\File;
+use App\Models\CategoryFieldValue;
 
 class CategoryController extends Controller
 {
@@ -249,31 +250,18 @@ class CategoryController extends Controller
             ]
         ]);
     }
-    public function editMakeById(Request $request, $categoryId, $makeId)
+
+    public function editMakeById(Request $request, $makeId)
     {
-        // التحقق من صحة البيانات المطلوبة
+        // Validate input
         $request->validate([
             'name_ar' => 'required|string|max:255',
             'name_en' => 'required|string|max:255',
         ]);
-
-        // جلب الفئة مع الحقول والقيم الخاصة بها
-        $category = Category::with(['fields.values'])->findOrFail($categoryId);
-
-        // البحث عن حقل 'Make'
-        $makeField = $category->fields->firstWhere('field_en', 'Make');
-
-        if (!$makeField) {
-            return response()->json([
-                'success' => false,
-                'msg_ar' => 'حقل الشركات المصنعة (Make) غير موجود لهذه الفئة.',
-                'msg_en' => 'Make field not found for this category.'
-            ], 404);
-        }
-
-        // جلب قيمة الـ Make المراد تعديلها والتحقق انها تخص هذا الحقل
-        $makeValue = $makeField->values()->find($makeId);
-
+    
+        // Find the make value by ID
+        $makeValue = CategoryFieldValue::find($makeId);
+    
         if (!$makeValue) {
             return response()->json([
                 'success' => false,
@@ -281,13 +269,17 @@ class CategoryController extends Controller
                 'msg_en' => 'Make value not found.'
             ], 404);
         }
-
-        // تحديث البيانات
+    
+        // Update the make value
         $makeValue->update([
             'value_ar' => $request->input('name_ar'),
             'value_en' => $request->input('name_en'),
         ]);
-
+    
+        // Optionally, get related field and category for response
+        $makeField = $makeValue->field;
+        $category = $makeField ? $makeField->category : null;
+    
         return response()->json([
             'success' => true,
             'msg_ar' => 'تم تعديل بيانات الشركة المصنعة بنجاح.',
@@ -296,16 +288,19 @@ class CategoryController extends Controller
                 'id' => $makeValue->id,
                 'name_ar' => $makeValue->value_ar,
                 'name_en' => $makeValue->value_en,
-                'category_id' => $categoryId,
+                'category_id' => $makeField->category_id ?? null,
                 'category_name_en' => $category->name_en ?? null,
                 'category_name_ar' => $category->name_ar ?? null,
-                'field_id' => $makeField->id,
-                'field_name_en' => $makeField->field_en,
-                'field_name_ar' => $makeField->field_ar,
+                'field_id' => $makeField->id ?? null,
+                'field_name_en' => $makeField->field_en ?? null,
+                'field_name_ar' => $makeField->field_ar ?? null,
                 'updated_at' => $makeValue->updated_at->toDateTimeString(),
             ]
         ]);
     }
+    
+
+
     public function deleteMakeById($categoryId, $makeId)
     {
         // جلب الفئة مع الحقول والقيم الخاصة بها
