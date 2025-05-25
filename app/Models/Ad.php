@@ -4,15 +4,41 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\CarModel; // تأكد من استدعاء الموديل في الأعلى
+use App\Models\CarModel;
 
 class Ad extends Model
 {
     use HasFactory;
+
     protected $fillable = [
-        'user_id', 'category_id', 'country_id', 'city_id','kilometer',
-        'title', 'description', 'price', 'main_image','phone_number', 'status','car_model','address'
+        'user_id',
+        'category_id',
+        'country_id',
+        'city_id',
+        'kilometer',
+        'title',
+        'description',
+        'price',
+        'main_image',
+        'phone_number',
+        'status',
+        'car_model',
+        'address'
     ];
+
+    // ✅ هذه هي الدالة الجديدة
+    protected static function booted()
+    {
+        static::updating(function ($ad) {
+            if (
+                $ad->isDirty('status') &&
+                $ad->status === 'approved' &&
+                !$ad->approved_at
+            ) {
+                $ad->approved_at = now();
+            }
+        });
+    }
 
     public function user()
     {
@@ -23,12 +49,11 @@ class Ad extends Model
     {
         return $this->belongsTo(CarModel::class, 'car_model', 'id');
     }
-  
-  public function views()
-{
-    return $this->hasMany(AdView::class, 'ad_id');
-}
 
+    public function views()
+    {
+        return $this->hasMany(AdView::class, 'ad_id');
+    }
 
     public function category()
     {
@@ -59,18 +84,14 @@ class Ad extends Model
     {
         return $this->hasMany(AdImage::class, 'ad_id');
     }
-  
-  public function adViews()
-{
-    return $this->hasMany(AdView::class, 'ad_id');
-}
 
-public function features()
-{
-    return $this->hasMany(AdFeature::class, 'car_ad_id')->with('value');
-}
+    public function adViews()
+    {
+        return $this->hasMany(AdView::class, 'ad_id');
+    }
 
-
-
-
+    public function features()
+    {
+        return $this->hasMany(AdFeature::class, 'car_ad_id')->with('value');
+    }
 }

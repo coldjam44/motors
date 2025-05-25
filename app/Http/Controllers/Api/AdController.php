@@ -25,7 +25,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Models\AdFeature;
-
+ use Carbon\Carbon;
 class AdController extends Controller
 {
 
@@ -846,33 +846,41 @@ class AdController extends Controller
         ]);
     }
 
+ 
 
-    public function indexAdsGroupedByCategory(Request $request)
-    {
-        // جلب كل التصنيفات مع الفلترة حسب الدولة إذا كانت موجودة
-        $categories = Category::with(['ads' => function ($query) use ($request) {
-            // إذا كان هناك country_id في الطلب، يتم تصفية الإعلانات حسب الدولة
-            if ($request->has('country_id')) {
-                $query->where('country_id', $request->country_id);
-            }
 
-            $query->with(['subImages', 'fieldValues', 'user'])
-                ->withCount('views')
-                ->where('status', 'approved')
-                ->orderByDesc('views_count');
-        }])->get();
+   
 
-        // تجهيز البيانات بالشكل المطلوب
-        $result = $categories->map(function ($category) {
-            return [
-                'category_id' => $category->id,
-                'category_name_ar' => $category->name_ar,
-                'category_name_en' => $category->name_en,
+public function indexAdsGroupedByCategory(Request $request)
+{
+    $now = Carbon::now();
 
-                'ads' => $category->ads->map(function ($ad) {
+    $categories = Category::with(['ads' => function ($query) use ($request) {
+        if ($request->has('country_id')) {
+            $query->where('country_id', $request->country_id);
+        }
+
+        $query->where('status', 'approved')
+            ->whereNotNull('approved_at')
+            ->with(['subImages', 'fieldValues', 'user'])
+            ->withCount('views');
+            // لا نستخدم select مع DB::raw هنا
+    }])->get();
+
+    // نضيف الحساب بعد جلب البيانات
+    $result = $categories->map(function ($category) use ($now) {
+        return [
+            'category_id' => $category->id,
+            'category_name_ar' => $category->name_ar,
+            'category_name_en' => $category->name_en,
+
+            'ads' => $category->ads
+                ->map(function ($ad) use ($now) {
+                    $duration = $ad->approved_at ? $now->diffInSeconds($ad->approved_at) : 1;
+                    $views_per_second = $duration > 0 ? $ad->views_count / $duration : $ad->views_count;
+
                     $ad->main_image = $ad->main_image ? url($ad->main_image) : null;
 
-                    // جلب أحدث إعلان للمستخدم
                     $latestAd = Ad::where('user_id', $ad->user_id)->latest('created_at')->first();
 
                     $ad->subImages->transform(function ($image) {
@@ -913,15 +921,19 @@ class AdController extends Controller
                         'sub_images' => $ad->subImages,
                         'details' => $ad->fieldValues,
                         'view_count' => $ad->views_count,
+                        'views_per_second' => $views_per_second,
                     ];
-                }),
-            ];
-        });
+                })
+                ->sortByDesc('views_per_second') // ترتيب حسب views_per_second بعد الجلب
+                ->values(), // لإعادة ترتيب المفاتيح بشكل مرتب
+        ];
+    });
 
-        return response()->json([
-            'categories' => $result,
-        ]);
-    }
+    return response()->json([
+        'categories' => $result,
+    ]);
+}
+
 
 
 
@@ -1167,36 +1179,41 @@ class AdController extends Controller
 
 
             $ad->fieldValues->transform(function ($fieldValue) {
-                $field = optional($fieldValue->field);
-                $fieldValueModel = optional($fieldValue->fieldValue);
+    $field = optional($fieldValue->field);
+    $fieldValueModel = optional($fieldValue->fieldValue);
 
-                $fieldType = $fieldValueModel->field_type ?? 'Unknown';
-                $valueAr = $fieldValueModel->value_ar ?? 'غير معروف';
-                $valueEn = $fieldValueModel->value_en ?? 'Unknown';
+    $fieldType = $fieldValueModel->field_type ?? 'Unknown';
+    $valueAr = $fieldValueModel->value_ar ?? 'غير معروف';
+    $valueEn = $fieldValueModel->value_en ?? 'Unknown';
 
-                // ✅ لو نوع الحقل text والقيمة رقمية (يعني ID لقيمة أخرى)
-                if ($fieldType === 'text' && is_numeric($valueAr)) {
-                    $realValue = \App\Models\CategoryFieldValue::find($valueAr);
-                    if ($realValue) {
-                        $valueAr = $realValue->value_ar ?? $valueAr;
-                        $valueEn = $realValue->value_en ?? $valueEn;
-                    }
-                }
+    if ($fieldType === 'text' && is_numeric($valueAr)) {
+        $realValue = \App\Models\CategoryFieldValue::find($valueAr);
+        if ($realValue) {
+            // هنا بنضيف شرط مقارنة الـ category_field_id
+            if ($realValue->category_field_id == $fieldValue->category_field_id) {
+                // نفس الحقل، نرجع القيمة الحقيقية
+                $valueAr = $realValue->value_ar ?? $valueAr;
+                $valueEn = $realValue->value_en ?? $valueEn;
+            } 
+            // لو مختلفين ما بنغيرش القيمة، نعرض الرقم كما هو
+        }
+    }
 
-                return [
-                    'field_id' => $fieldValue->category_field_id,
-                    'field_name' => [
-                        'ar' => $field->field_ar ?? 'غير معروف',
-                        'en' => $field->field_en ?? 'Unknown',
-                    ],
-                    'field_value_id' => $fieldValue->category_field_value_id,
-                    'field_value' => [
-                        'ar' => $valueAr,
-                        'en' => $valueEn,
-                    ],
-                    'field_type' => $fieldType,
-                ];
-            });
+    return [
+        'field_id' => $fieldValue->category_field_id,
+        'field_name' => [
+            'ar' => $field->field_ar ?? 'غير معروف',
+            'en' => $field->field_en ?? 'Unknown',
+        ],
+        'field_value_id' => $fieldValue->category_field_value_id,
+        'field_value' => [
+            'ar' => $valueAr,
+            'en' => $valueEn,
+        ],
+        'field_type' => $fieldType,
+    ];
+});
+
 
             $features = $ad->features->map(function ($feature) {
                 return [

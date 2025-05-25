@@ -201,4 +201,145 @@ class CategoryController extends Controller
             'data' => $makes
         ]);
     }
+
+
+    public function addNewMake(Request $request, $categoryId)
+    {
+        // التحقق من وجود البيانات المطلوبة في الطلب
+        $request->validate([
+            'name_ar' => 'required|string|max:255',
+            'name_en' => 'required|string|max:255',
+        ]);
+
+        // جلب الفئة مع الحقول والقيم الخاصة بها
+        $category = Category::with(['fields.values'])->findOrFail($categoryId);
+
+        // البحث عن حقل 'Make'
+        $makeField = $category->fields->firstWhere('field_en', 'Make');
+
+        if (!$makeField) {
+            return response()->json([
+                'success' => false,
+                'msg_ar' => 'حقل الشركات المصنعة (Make) غير موجود لهذه الفئة.',
+                'msg_en' => 'Make field not found for this category.'
+            ], 404);
+        }
+
+        // إضافة قيمة جديدة لحقل Make
+        $newMake = $makeField->values()->create([
+            'value_ar' => $request->input('name_ar'),
+            'value_en' => $request->input('name_en'),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message_ar' => 'تم إضافة الشركة المصنعة الجديدة بنجاح.',
+            'message_en' => 'New Make added successfully.',
+            'data' => [
+                'id' => $newMake->id,
+                'name_ar' => $newMake->value_ar,
+                'name_en' => $newMake->value_en,
+                'category_id' => $categoryId,
+                'category_name_en' => $category->name_en ?? null,
+                'category_name_ar' => $category->name_ar ?? null,
+                'field_id' => $makeField->id,
+                'field_name_en' => $makeField->field_en,
+                'field_name_ar' => $makeField->field_ar,
+                'created_at' => $newMake->created_at->toDateTimeString(),
+            ]
+        ]);
+    }
+    public function editMakeById(Request $request, $categoryId, $makeId)
+    {
+        // التحقق من صحة البيانات المطلوبة
+        $request->validate([
+            'name_ar' => 'required|string|max:255',
+            'name_en' => 'required|string|max:255',
+        ]);
+
+        // جلب الفئة مع الحقول والقيم الخاصة بها
+        $category = Category::with(['fields.values'])->findOrFail($categoryId);
+
+        // البحث عن حقل 'Make'
+        $makeField = $category->fields->firstWhere('field_en', 'Make');
+
+        if (!$makeField) {
+            return response()->json([
+                'success' => false,
+                'msg_ar' => 'حقل الشركات المصنعة (Make) غير موجود لهذه الفئة.',
+                'msg_en' => 'Make field not found for this category.'
+            ], 404);
+        }
+
+        // جلب قيمة الـ Make المراد تعديلها والتحقق انها تخص هذا الحقل
+        $makeValue = $makeField->values()->find($makeId);
+
+        if (!$makeValue) {
+            return response()->json([
+                'success' => false,
+                'msg_ar' => 'قيمة الشركة المصنعة غير موجودة.',
+                'msg_en' => 'Make value not found.'
+            ], 404);
+        }
+
+        // تحديث البيانات
+        $makeValue->update([
+            'value_ar' => $request->input('name_ar'),
+            'value_en' => $request->input('name_en'),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'msg_ar' => 'تم تعديل بيانات الشركة المصنعة بنجاح.',
+            'msg_en' => 'Make updated successfully.',
+            'data' => [
+                'id' => $makeValue->id,
+                'name_ar' => $makeValue->value_ar,
+                'name_en' => $makeValue->value_en,
+                'category_id' => $categoryId,
+                'category_name_en' => $category->name_en ?? null,
+                'category_name_ar' => $category->name_ar ?? null,
+                'field_id' => $makeField->id,
+                'field_name_en' => $makeField->field_en,
+                'field_name_ar' => $makeField->field_ar,
+                'updated_at' => $makeValue->updated_at->toDateTimeString(),
+            ]
+        ]);
+    }
+    public function deleteMakeById($categoryId, $makeId)
+    {
+        // جلب الفئة مع الحقول والقيم الخاصة بها
+        $category = Category::with(['fields.values'])->findOrFail($categoryId);
+
+        // البحث عن حقل 'Make'
+        $makeField = $category->fields->firstWhere('field_en', 'Make');
+
+        if (!$makeField) {
+            return response()->json([
+                'success' => false,
+                'msg_ar' => 'حقل الشركات المصنعة (Make) غير موجود لهذه الفئة.',
+                'msg_en' => 'Make field not found for this category.'
+            ], 404);
+        }
+
+        // البحث عن القيمة المطلوب حذفها داخل الحقل المحدد
+        $makeValue = $makeField->values()->find($makeId);
+
+        if (!$makeValue) {
+            return response()->json([
+                'success' => false,
+                'msg_ar' => 'القيمة المطلوبة غير موجودة أو لا تتبع هذا الحقل.',
+                'msg_en' => 'Make value not found or does not belong to this field.'
+            ], 404);
+        }
+
+        // حذف القيمة
+        $makeValue->delete();
+
+        return response()->json([
+            'success' => true,
+            'msg_ar' => 'تم حذف الشركة المصنعة بنجاح.',
+            'msg_en' => 'Make deleted successfully.'
+        ]);
+    }
 }

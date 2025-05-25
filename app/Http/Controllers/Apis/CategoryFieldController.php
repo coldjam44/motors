@@ -192,8 +192,8 @@ class CategoryFieldController extends Controller
         return response()->json([
             'success' => true,
             'message' => [
-                'ar' => 'تمت إضافة الموديلات بنجاح',
-                'en' => 'Models added successfully',
+                'message_ar' => 'تمت إضافة الموديلات بنجاح',
+                'message_en' => 'Models added successfully',
             ],
         ]);
     }
@@ -219,5 +219,34 @@ class CategoryFieldController extends Controller
                 ],
             ], 404);
         }
+    }
+
+
+    public function storeMake(Request $request, $categoryId)
+    {
+        $validator = \Validator::make($request->all(), [
+            'make_ar' => 'required|string',
+            'make_en' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // نضيف الشركة المصنعة كحقل جديد في category_fields
+        $categoryField = CategoryField::create([
+            'category_id' => $categoryId,
+            'field_ar' => $request->make_ar,
+            'field_en' => $request->make_en,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تمت إضافة الشركة المصنعة بنجاح',
+            'data' => $categoryField,
+        ]);
     }
 }
