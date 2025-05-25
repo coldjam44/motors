@@ -103,43 +103,25 @@ class CategoryFieldController extends Controller
 
 
     // ✅ تحديث حقل معين وقيمه
-    public function update(Request $request, $categoryId, $fieldId)
+    public function updateCategoryFieldArAndEn(Request $request, $fieldId)
     {
         $request->validate([
             'field_ar' => 'required|string',
             'field_en' => 'required|string',
-            'values' => 'nullable|array', // allow null or empty array
-            'values.*.value_ar' => 'required_with:values.*.value_en|string|nullable',
-            'values.*.value_en' => 'required_with:values.*.value_ar|string|nullable',
         ]);
-
-        $field = CategoryField::where('category_id', $categoryId)->findOrFail($fieldId);
+    
+        $field = CategoryField::findOrFail($fieldId);
         $field->field_ar = $request->field_ar;
         $field->field_en = $request->field_en;
         $field->save();
-
-        // حذف القيم القديمة فقط إذا كانت هناك قيم جديدة
-        $field->values()->delete();
-
-        if (!empty($request->values)) {
-            foreach ($request->values as $value) {
-                if (!empty($value['value_ar']) && !empty($value['value_en'])) {
-                    CategoryFieldValue::create([
-                        'category_field_id' => $field->id,
-                        'value_ar' => $value['value_ar'],
-                        'value_en' => $value['value_en'],
-                    ]);
-                }
-            }
-        }
-
+    
         return response()->json([
             'success' => true,
             'message' => 'تم تحديث الحقل بنجاح',
             'data' => $field
         ]);
     }
-
+    
 
     // ✅ حذف حقل معين
     public function destroy($categoryId, $fieldId)

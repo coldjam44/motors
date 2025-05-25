@@ -95,10 +95,13 @@ Route::delete('/cities/{id}', [CityController::class, 'destroy']);
 Route::prefix('categories/{categoryId}/fields')->group(function () {
     Route::get('/', [CategoryFieldController::class, 'index']); // عرض جميع الحقول للفئة
     Route::post('/', [CategoryFieldController::class, 'store']); // إضافة حقل جديد
-    Route::post('/{fieldId}', [CategoryFieldController::class, 'update']); // تعديل حقل
+    
+
+
     Route::delete('/{fieldId}', [CategoryFieldController::class, 'destroy']); // حذف حقل
 });
 
+Route::post('/update-category-field/{fieldId}', [CategoryFieldController::class, 'updateCategoryFieldArAndEn']);
 
 Route::middleware('auth:api')->group(function () { // ✅ استخدم 'api' وليس 'jwt'
     Route::post('ads', [AdController::class, 'store']);
