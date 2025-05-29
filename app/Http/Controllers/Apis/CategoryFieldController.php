@@ -13,52 +13,71 @@ class CategoryFieldController extends Controller
 {
 
     public function index(Request $request, $categoryId)
-    {
-        $category = Category::with('fields.values')->findOrFail($categoryId);
-        $sort = $request->query('sort', 'en');
-        $fields = $category->fields;
-    
-        $requiredFields = [
-            'Model Year' => 'سنة الصنع',
-            'Make' => 'الشركة المصنعة',
-        ];
-    
-        foreach ($requiredFields as $fieldEn => $fieldAr) {
-            if (!$fields->contains('field_en', $fieldEn)) {
-                $newField = $category->fields()->create([
-                    'field_en' => $fieldEn,
-                    'field_ar' => $fieldAr,
-                ]);
-                $newField->setRelation('values', collect());
-                $fields->push($newField);
-            }
-        }
-    
-        // Sort values inside each field, and set the relation so it's used in JSON output
-        $fields = $fields->map(function ($field) use ($sort) {
-            $values = $field->values instanceof \Illuminate\Support\Collection
-                ? $field->values
-                : collect($field->values);
-    
-            if ($sort === 'ar') {
-                $sortedValues = $values->sortBy('value_ar')->values();
-            } else {
-                $sortedValues = $values->sortBy('value_en')->values();
-            }
-    
-            // This is the key line: override the Eloquent relationship with the sorted collection
-            $field->setRelation('values', $sortedValues);
-    
-            return $field;
-        });
-    
-        return response()->json([
-            'success' => true,
-            'data' => $fields,
-        ]);
-    }
-    
+{
+    $category = Category::with('fields.values')->findOrFail($categoryId);
+    $sort = $request->query('sort', 'en');
+    $fields = $category->fields;
 
+    $requiredFields = [
+        'Model Year' => 'سنة الصنع',
+        'Make' => 'الشركة المصنعة',
+    ];
+
+    // إضافة الحقول المطلوبة لو غير موجودة
+    foreach ($requiredFields as $fieldEn => $fieldAr) {
+        if (!$fields->contains('field_en', $fieldEn)) {
+            $newField = $category->fields()->create([
+                'field_en' => $fieldEn,
+                'field_ar' => $fieldAr,
+            ]);
+            $newField->setRelation('values', collect());
+            $fields->push($newField);
+        }
+    }
+
+    // ترتيب القيم داخل كل حقل مع استثناء القيم التي field_type == "text"
+    $fields = $fields->map(function ($field) use ($sort) {
+        $values = $field->values instanceof \Illuminate\Support\Collection
+            ? $field->values
+            : collect($field->values);
+
+        // استثناء القيم التي نوعها text
+        $values = $values->reject(function ($value) {
+            return $value->field_type === 'text';
+        });
+
+        // ترتيب خاص لحقل "Model Year" بناءً على القيمة الرقمية من الأكبر للأصغر (الأحدث للأقدم)
+        if ($field->field_en === 'Model Year') {
+            $sortedValues = $values->sortByDesc(function ($value) use ($sort) {
+                // القيمة تكون رقمية، نحولها لعدد صحيح للترتيب الرقمي الصحيح
+                return (int) $value->{'value_' . $sort};
+            })->values();
+        } else {
+            // ترتيب عادي أبجدي بناءً على لغة الفرز (ar أو en)
+            $sortedValues = $sort === 'ar'
+                ? $values->sortBy('value_ar')->values()
+                : $values->sortBy('value_en')->values();
+        }
+
+        $field->setRelation('values', $sortedValues);
+
+        return $field;
+    });
+
+    // ترتيب الحقول بحيث تكون الحقول المطلوبة في البداية
+    $fields = $fields->sortBy(function ($field) use ($requiredFields) {
+        return array_search($field->field_en, array_keys($requiredFields)) !== false
+            ? array_search($field->field_en, array_keys($requiredFields))
+            : 100;
+    })->values();
+
+    return response()->json([
+        'success' => true,
+        'data' => $fields,
+    ]);
+}
+
+    
 
 
     public function store(Request $request, $categoryId)

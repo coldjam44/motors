@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\File;
 use App\Models\CategoryFieldValue;
+use App\Models\CategoryField;
 
 class CategoryController extends Controller
 {
@@ -203,138 +204,164 @@ class CategoryController extends Controller
         ]);
     }
 
-
     public function addNewMake(Request $request, $categoryId)
     {
         // التحقق من وجود البيانات المطلوبة في الطلب
         $request->validate([
+            'field_id' => 'required|integer',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'required|string|max:255',
         ]);
 
-        // جلب الفئة مع الحقول والقيم الخاصة بها
-        $category = Category::with(['fields.values'])->findOrFail($categoryId);
+        // جلب الفئة مع الحقول الخاصة بها
+        $category = Category::with(['fields'])->findOrFail($categoryId);
 
-        // البحث عن حقل 'Make'
-        $makeField = $category->fields->firstWhere('field_en', 'Make');
+        // جلب الحقل المطلوب من الفئة
+        $field = $category->fields->where('id', $request->input('field_id'))->first();
 
-        if (!$makeField) {
+        if (!$field) {
             return response()->json([
                 'success' => false,
-                'msg_ar' => 'حقل الشركات المصنعة (Make) غير موجود لهذه الفئة.',
-                'msg_en' => 'Make field not found for this category.'
+                'msg_ar' => 'الحقل غير موجود لهذه الفئة.',
+                'msg_en' => 'Field not found for this category.'
             ], 404);
         }
 
-        // إضافة قيمة جديدة لحقل Make
-        $newMake = $makeField->values()->create([
+        // إضافة قيمة جديدة للحقل
+        $newValue = $field->values()->create([
             'value_ar' => $request->input('name_ar'),
             'value_en' => $request->input('name_en'),
         ]);
 
         return response()->json([
             'success' => true,
-            'message_ar' => 'تم إضافة الشركة المصنعة الجديدة بنجاح.',
-            'message_en' => 'New Make added successfully.',
+            'message_ar' => 'تمت إضافة القيمة الجديدة بنجاح.',
+            'message_en' => 'New value added successfully.',
             'data' => [
-                'id' => $newMake->id,
-                'name_ar' => $newMake->value_ar,
-                'name_en' => $newMake->value_en,
+                'id' => $newValue->id,
+                'name_ar' => $newValue->value_ar,
+                'name_en' => $newValue->value_en,
                 'category_id' => $categoryId,
                 'category_name_en' => $category->name_en ?? null,
                 'category_name_ar' => $category->name_ar ?? null,
-                'field_id' => $makeField->id,
-                'field_name_en' => $makeField->field_en,
-                'field_name_ar' => $makeField->field_ar,
-                'created_at' => $newMake->created_at->toDateTimeString(),
+                'field_id' => $field->id,
+                'field_name_en' => $field->field_en ?? null,
+                'field_name_ar' => $field->field_ar ?? null,
+                'created_at' => $newValue->created_at->toDateTimeString(),
             ]
         ]);
     }
 
-    public function editMakeById(Request $request, $makeId)
+
+
+    public function editMakeById(Request $request, $valId)
     {
         // Validate input
         $request->validate([
             'name_ar' => 'required|string|max:255',
             'name_en' => 'required|string|max:255',
         ]);
-    
-        // Find the make value by ID
-        $makeValue = CategoryFieldValue::find($makeId);
-    
-        if (!$makeValue) {
+
+        // Find the value by ID
+        $fieldValue = CategoryFieldValue::find($valId);
+
+        if (!$fieldValue) {
             return response()->json([
                 'success' => false,
-                'msg_ar' => 'قيمة الشركة المصنعة غير موجودة.',
-                'msg_en' => 'Make value not found.'
+                'msg_ar' => 'القيمة غير موجودة.',
+                'msg_en' => 'Value not found.'
             ], 404);
         }
-    
-        // Update the make value
-        $makeValue->update([
+
+        // Update the value
+        $fieldValue->update([
             'value_ar' => $request->input('name_ar'),
             'value_en' => $request->input('name_en'),
         ]);
-    
-        // Optionally, get related field and category for response
-        $makeField = $makeValue->field;
-        $category = $makeField ? $makeField->category : null;
-    
+
+        // Get related field and category for response (if relations exist)
+        $field = $fieldValue->field ?? null;
+        $category = $field ? $field->category : null;
+
         return response()->json([
             'success' => true,
-            'msg_ar' => 'تم تعديل بيانات الشركة المصنعة بنجاح.',
-            'msg_en' => 'Make updated successfully.',
+            'msg_ar' => 'تم تعديل القيمة بنجاح.',
+            'msg_en' => 'Value updated successfully.',
             'data' => [
-                'id' => $makeValue->id,
-                'name_ar' => $makeValue->value_ar,
-                'name_en' => $makeValue->value_en,
-                'category_id' => $makeField->category_id ?? null,
+                'id' => $fieldValue->id,
+                'name_ar' => $fieldValue->value_ar,
+                'name_en' => $fieldValue->value_en,
+                'category_id' => $field->category_id ?? null,
                 'category_name_en' => $category->name_en ?? null,
                 'category_name_ar' => $category->name_ar ?? null,
-                'field_id' => $makeField->id ?? null,
-                'field_name_en' => $makeField->field_en ?? null,
-                'field_name_ar' => $makeField->field_ar ?? null,
-                'updated_at' => $makeValue->updated_at->toDateTimeString(),
+                'field_id' => $field->id ?? null,
+                'field_name_en' => $field->field_en ?? null,
+                'field_name_ar' => $field->field_ar ?? null,
+                'updated_at' => $fieldValue->updated_at->toDateTimeString(),
             ]
         ]);
     }
-    
 
 
-    public function deleteMakeById($categoryId, $makeId)
+    public function deleteMakeById($catId, $fldId, $valId)
     {
-        // جلب الفئة مع الحقول والقيم الخاصة بها
-        $category = Category::with(['fields.values'])->findOrFail($categoryId);
+        // جلب الفئة مع الحقول
+        $category = Category::with(['fields'])->findOrFail($catId);
 
-        // البحث عن حقل 'Make'
-        $makeField = $category->fields->firstWhere('field_en', 'Make');
+        // جلب الحقل والتأكد أنه تابع للفئة
+        $field = $category->fields->where('id', $fldId)->first();
 
-        if (!$makeField) {
+        if (!$field) {
             return response()->json([
                 'success' => false,
-                'msg_ar' => 'حقل الشركات المصنعة (Make) غير موجود لهذه الفئة.',
-                'msg_en' => 'Make field not found for this category.'
+                'msg_ar' => 'الحقل غير موجود لهذه الفئة.',
+                'msg_en' => 'Field not found for this category.'
             ], 404);
         }
 
-        // البحث عن القيمة المطلوب حذفها داخل الحقل المحدد
-        $makeValue = $makeField->values()->find($makeId);
+        // جلب القيمة والتأكد أنها تتبع الحقل
+        $fieldValue = $field->values()->find($valId);
 
-        if (!$makeValue) {
+        if (!$fieldValue) {
             return response()->json([
                 'success' => false,
                 'msg_ar' => 'القيمة المطلوبة غير موجودة أو لا تتبع هذا الحقل.',
-                'msg_en' => 'Make value not found or does not belong to this field.'
+                'msg_en' => 'Value not found or does not belong to this field.'
             ], 404);
         }
 
         // حذف القيمة
-        $makeValue->delete();
+        $fieldValue->delete();
 
         return response()->json([
             'success' => true,
-            'msg_ar' => 'تم حذف الشركة المصنعة بنجاح.',
-            'msg_en' => 'Make deleted successfully.'
+            'msg_ar' => 'تم حذف القيمة بنجاح.',
+            'msg_en' => 'Value deleted successfully.'
         ]);
     }
+
+    public function addField(Request $request)
+    {
+        $request->validate([
+            'category_id' => 'required|exists:categories,id',
+            'field_ar' => 'required|string|max:255',
+            'field_en' => 'required|string|max:255',
+        ]);
+    
+        $field = CategoryField::create([
+            'category_id' => $request->input('category_id'),
+            'field_ar' => $request->input('field_ar'),
+            'field_en' => $request->input('field_en'),
+            // no need to pass 'type' or 'is_required'
+        ]);
+    
+        return response()->json([
+            'success' => true,
+            'msg_ar' => 'تمت إضافة الحقل بنجاح.',
+            'msg_en' => 'Field added successfully.',
+            'data' => $field
+        ]);
+    }
+    
+
 }
