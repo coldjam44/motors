@@ -15,7 +15,7 @@ use App\Http\Controllers\Apis\BlogController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\Api\CarModelController;
- 
+use App\Http\Controllers\VisitorLogController; 
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -182,3 +182,7 @@ Route::delete(
 );
 Route::get('/mostRecentAds', [AdController::class, 'mostRecentAds']);
 Route::post('/add-field', [CategoryController::class, 'addField']);
+
+Route::post('/track-visitor', [VisitorLogController::class, 'track']); 
+Route::get('/track-visitor-statistics', [VisitorLogController::class, 'statistics']);
+Route::post('/track-exit', [VisitorLogController::class, 'trackExit']);

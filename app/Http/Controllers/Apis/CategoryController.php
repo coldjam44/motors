@@ -8,57 +8,76 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\File;
 use App\Models\CategoryFieldValue;
 use App\Models\CategoryField;
+use App\Http\Controllers\VisitorLogController;  // استدعاء الكنترولر
 
 class CategoryController extends Controller
 {
     /**
      * عرض جميع التصنيفات مع روابط الصور.
      */
-    public function index()
-    {
-        $customOrder = [
-            1 => 'Cars',
-            3 => 'Classic Cars',
-            10 => 'Number Plates',
-            5 => 'Bikes',
-            7 => 'Jet Ski',
-            8 => 'Marine Engine',
-            2 => 'Boot & Yacht',
-            9 => 'Heavy Machinery',
-            13 => 'Rent a Car',
-            14 => 'Taxi on Apps',
-            11 => 'Spare Parts',
-            12 => 'Accessories',
-            15 => 'Service and Repair',
-            6 => 'Trailers',
-            16 => 'Scrap',
-        ];
 
-        $orderedIds = array_keys($customOrder);
 
-        // Get categories in the custom order
-        $orderedCategories = Category::whereIn('id', $orderedIds)
-            ->orderByRaw('FIELD(id, ' . implode(',', $orderedIds) . ')')
-            ->get();
+public function index()
+{
+    $customOrder = [
+        1 => 'Cars',
+        3 => 'Classic Cars',
+        10 => 'Number Plates',
+        5 => 'Bikes',
+        7 => 'Jet Ski',
+        8 => 'Marine Engine',
+        2 => 'Boot & Yacht',
+        9 => 'Heavy Machinery',
+        13 => 'Rent a Car',
+        14 => 'Taxi on Apps',
+        11 => 'Spare Parts',
+        12 => 'Accessories',
+        15 => 'Service and Repair',
+        6 => 'Trailers',
+        16 => 'Scrap',
+    ];
 
-        // Get categories not in the custom order
-        $remainingCategories = Category::whereNotIn('id', $orderedIds)
-            ->orderBy('id', 'asc') // or any other order
-            ->get();
+    $orderedIds = array_keys($customOrder);
 
-        // Merge both collections
-        $categories = $orderedCategories->concat($remainingCategories);
+    // Get categories in the custom order
+    $orderedCategories = Category::whereIn('id', $orderedIds)
+        ->orderByRaw('FIELD(id, ' . implode(',', $orderedIds) . ')')
+        ->get();
 
-        // Transform the image URLs
-        $categories->transform(function ($category) {
-            $category->image = url('categorys/' . $category->image);
-            return $category;
-        });
+    // Get categories not in the custom order
+    $remainingCategories = Category::whereNotIn('id', $orderedIds)
+        ->orderBy('id', 'asc')
+        ->get();
 
-        return response()->json([
-            'categories' => $categories
-        ], 200);
-    }
+    // Merge both collections
+    $categories = $orderedCategories->concat($remainingCategories);
+
+    // استدعاء الكنترولر الخاص بالإحصائيات
+    $visitorLogController = new VisitorLogController();
+
+    // نحضر الإحصائيات لكل تصنيف
+    $categories->transform(function ($category) use ($visitorLogController) {
+        // استدعاء دالة statistics مع تمرير category_id
+        $request = request()->merge(['category_id' => $category->id]); // تحضير request وهمي مع category_id
+
+        $response = $visitorLogController->statistics($request);
+
+        // جلب محتوى ال json من Response
+        $stats = json_decode($response->getContent(), true);
+
+        // إضافة الإحصائيات لل category
+        $category->statistics = $stats;
+
+        // تعديل رابط الصورة
+        $category->image = url('categorys/' . $category->image);
+
+        return $category;
+    });
+
+    return response()->json([
+        'categories' => $categories
+    ], 200);
+}
 
 
     /**

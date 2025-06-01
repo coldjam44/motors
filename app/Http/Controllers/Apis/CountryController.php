@@ -6,22 +6,38 @@ use App\Models\country;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\File;
-
+use App\Http\Controllers\VisitorLogController;
 class CountryController extends Controller
 {
-    public function index()
-    {
-        $categories = country::all();
 
-        $categories->transform(function ($country) {
-            $country->image = url('countrys/' . $country->image);
-            return $country;
-        });
+public function index()
+{
+    $visitorLogController = new VisitorLogController();
 
-        return response()->json([
-            'categories' => $categories
-        ], 200);
-    }
+    $countries = Country::all();
+
+    // نحضر بيانات الزوار لكل دولة
+    $countries->transform(function ($country) use ($visitorLogController) {
+        // رابط الصورة
+        $country->image = url('countrys/' . $country->image);
+
+        // نصنع طلب مع country_id
+        $request = Request::create('/fake-url', 'GET', ['country_id' => $country->id]);
+
+        // نستدعي دالة statistics مع الطلب
+        $statsResponse = $visitorLogController->statistics($request);
+
+        // ناخذ البيانات ونضيفها للعنصر
+        $country->visitor_statistics = $statsResponse->getData();
+
+        return $country;
+    });
+
+    return response()->json([
+        'countries' => $countries
+    ], 200);
+}
+
 
     /**
      * إضافة تصنيف جديد.
