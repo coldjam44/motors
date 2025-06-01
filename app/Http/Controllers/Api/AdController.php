@@ -119,8 +119,11 @@ class AdController extends Controller
         $image->save($mainImagePath);
 
 
-              $categoryName = Category::find($request->category_id)->name_ar ?? '';
-    $countryName = Country::find($request->country_id)->name_ar ?? '';
+        $categoryName = Category::find($request->category_id)->name_ar ?? '';
+        $countryName = Country::find($request->country_id)->name_ar ?? '';
+
+        $encategoryName = Category::find($request->category_id)->name_en ?? '';
+        $encountryName = Country::find($request->country_id)->name_en ?? '';
 
         // إنشاء الإعلان
         $ad = Ad::create([
@@ -144,8 +147,8 @@ class AdController extends Controller
             'user_id' => $adUserId,
             'from_user_id' => null,
             'type' => 'ad_status',
-           'message_ar' => "إعلانك في قسم {$categoryName} ب{$countryName} قيد المراجعة!",
-        'message_en' => "Your ad in {$categoryName} at {$countryName} is under review!",
+            'message_ar' => "إعلانك في قسم {$categoryName} ب{$countryName} قيد المراجعة!",
+            'message_en' => "Your ad in {$encategoryName} at {$encountryName} is under review!",
             'ad_id' => $ad->id,
             'is_read' => false,
         ]);
@@ -159,8 +162,8 @@ class AdController extends Controller
                     'from_user_id' => $user->id,
                     'ad_id' => $ad->id,
                     'type' => 'new_ad',
-                'message_ar' => "{$user->first_name} نشر إعلان جديد في {$categoryName} ب{$countryName}!",
-                'message_en' => "{$user->first_name} posted a new ad in {$categoryName} at {$countryName}!",
+                    'message_ar' => "{$user->first_name} نشر إعلان جديد في {$categoryName} ب{$countryName}!",
+                    'message_en' => "{$user->first_name} posted a new ad in {$encategoryName} at {$encountryName}!",
                 ]);
             }
         }
@@ -262,8 +265,8 @@ class AdController extends Controller
                 'from_user_id' => $user->id,  // المستخدم اللي أنشأ الإعلان
                 'ad_id' => $ad->id,
                 'type' => 'admin_new_ad', // نوع جديد مخصص للإدمنز
-'message_ar' => "تم إنشاء إعلان جديد بعنوان: " . $ad->title . " في قسم {$categoryName} ب{$countryName}",
-            'message_en' => "A new ad has been created titled: " . $ad->title . " in {$categoryName} at {$countryName}",
+                'message_ar' => "تم إنشاء إعلان جديد بعنوان: " . $ad->title . " في قسم {$categoryName} ب{$countryName}",
+                'message_en' => "A new ad has been created titled: " . $ad->title . " in {$encategoryName} at {$encountryName}",
                 'is_read' => false,
             ]);
         }
@@ -454,6 +457,9 @@ class AdController extends Controller
         $categoryName = Category::find($request->category_id)?->name_ar ?? '';
         $countryName = Country::find($request->country_id)?->name_ar ?? '';
 
+        $encategoryName = Category::find($request->category_id)?->name_en ?? '';
+        $encountryName = Country::find($request->country_id)?->name_en ?? '';
+
         if ($ad->status === 'pending') {
             $admins = Userauth::where('role', 'admin')->get();
             foreach ($admins as $admin) {
@@ -462,7 +468,7 @@ class AdController extends Controller
                     'from_user_id' => $user->id,
                     'type' => 'ad_review',
                     'message_ar' => "يوجد إعلان جديد في قسم '{$categoryName}' من دولة '{$countryName}' قيد المراجعة من المستخدم {$user->first_name}",
-                    'message_en' => "A new ad in category '{$categoryName}' from country '{$countryName}' is pending review from user {$user->first_name}",
+                    'message_en' => "A new ad in category '{$encategoryName}' from country '{$encountryName}' is pending review from user {$user->first_name}",
                     'ad_id' => $ad->id,
                     'is_read' => false,
                 ]);
@@ -475,7 +481,7 @@ class AdController extends Controller
                 'from_user_id' => null,
                 'type' => 'ad_status',
                 'message_ar' => "إعلانك في قسم '{$categoryName}' بدولة '{$countryName}' قيد المراجعة!",
-                'message_en' => "Your ad in category '{$categoryName}' from country '{$countryName}' is under review!",
+                'message_en' => "Your ad in category '{$encategoryName}' from country '{$encountryName}' is under review!",
                 'ad_id' => $ad->id,
                 'is_read' => false,
             ]);
@@ -762,204 +768,204 @@ class AdController extends Controller
 
 
     public function indexadsusersByViews(Request $request)
-{
-    $query = Ad::with(['subImages', 'fieldValues', 'user'])
-        ->withCount('views') // جلب عدد المشاهدات
-        ->where('status', 'approved') // ✅ جلب الإعلانات الموافق عليها فقط
-        ->orderByDesc('views_count'); // ترتيب تنازلي حسب عدد المشاهدات  
+    {
+        $query = Ad::with(['subImages', 'fieldValues', 'user'])
+            ->withCount('views') // جلب عدد المشاهدات
+            ->where('status', 'approved') // ✅ جلب الإعلانات الموافق عليها فقط
+            ->orderByDesc('views_count'); // ترتيب تنازلي حسب عدد المشاهدات  
 
-    // ✅ التحقق من القيم المدخلة
-    $filters = [
-        'category_id' => Category::where('id', $request->category_id)->exists(),
-        'country_id' => Country::where('id', $request->country_id)->exists(),
-    ];
-
-    foreach ($filters as $key => $isValid) {
-        if ($request->has($key) && !$isValid) {
-            return response()->json(['ads' => []], 200);
-        }
-    }
-
-    // ✅ تطبيق الفلاتر المطلوبة
-    if ($request->has('category_id')) {
-        $query->where('category_id', $request->category_id);
-    }
-    if ($request->has('country_id')) {
-        $query->where('country_id', $request->country_id);
-    }
-
-    // ✅ جلب فقط أول 15 إعلان بدون pagination
-    $ads = $query->take(15)->get();
-
-    // ✅ تحويل البيانات
-    $transformedAds = $ads->map(function ($ad) {
-        // تحويل صورة الغلاف
-        $ad->main_image = $ad->main_image ? url($ad->main_image) : null;
-
-        // جلب أحدث إعلان للمستخدم  
-        $latestAd = Ad::where('user_id', $ad->user_id)->latest('created_at')->first();
-
-        // تحويل الصور الفرعية  
-        $subImages = $ad->subImages->map(function ($image) {
-            $image->image = url($image->image);
-            return $image;
-        });
-
-        
-
-$details = $ad->fieldValues->map(function ($fieldValue) {
-    $fieldType = optional($fieldValue->fieldValue)->field_type;
-    $value_ar = optional($fieldValue->fieldValue)->value_ar;
-    $value_en = optional($fieldValue->fieldValue)->value_en;
-
-    if ($fieldType === 'text' && is_numeric($value_ar)) {
-        $dbValue = DB::table('category_field_values')->where('id', $value_ar)->first();
-
-        if ($dbValue && $dbValue->category_field_id == $fieldValue->category_field_id) {
-            $value_ar = $dbValue->value_ar ?? $value_ar;
-            $value_en = $dbValue->value_en ?? $value_en;
-        }
-    }
-
-    return [
-        'field_id' => $fieldValue->category_field_id,
-        'field_name' => [
-            'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
-            'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
-        ],
-        'field_value' => [
-            'id' => $fieldValue->category_field_value_id,
-            'ar' => $value_ar ?? 'غير معروف',
-            'en' => $value_en ?? 'Unknown',
-        ],
-    ];
-});
-
-
-        // إرجاع البيانات بشكل منسق
-        return [
-            'id' => $ad->id,
-            'user_id' => $ad->user_id,
-            'user_name' => trim(optional($ad->user)->first_name . ' ' . optional($ad->user)->last_name) ?: null,
-            'user_image' => optional($ad->user)->profile_image ? url('profile_images/' . $ad->user->profile_image) : null,
-            'user_registered_at' => optional($ad->user)->created_at ?? null,
-            'last_ad_posted_at' => optional($latestAd)->created_at ?? null,
-            'title' => $ad->title,
-            'description' => $ad->description,
-            'address' => $ad->address,
-            'kilometer' => $ad->kilometer,
-            'price' => $ad->price,
-            'phone_number' => $ad->phone_number,
-            'status' => $ad->status,
-            'main_image' => $ad->main_image,
-            'sub_images' => $subImages,
-            'details' => $details,
-            'view_count' => $ad->views_count,
+        // ✅ التحقق من القيم المدخلة
+        $filters = [
+            'category_id' => Category::where('id', $request->category_id)->exists(),
+            'country_id' => Country::where('id', $request->country_id)->exists(),
         ];
-    });
 
-    return response()->json([
-        'ads' => $transformedAds,
-    ]);
-}
+        foreach ($filters as $key => $isValid) {
+            if ($request->has($key) && !$isValid) {
+                return response()->json(['ads' => []], 200);
+            }
+        }
 
-
-
-
-
-public function indexAdsGroupedByCategory(Request $request)
-{
-    $now = Carbon::now();
-
-    $categories = Category::with(['ads' => function ($query) use ($request) {
+        // ✅ تطبيق الفلاتر المطلوبة
+        if ($request->has('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
         if ($request->has('country_id')) {
             $query->where('country_id', $request->country_id);
         }
 
-        $query->where('status', 'approved')
-            ->whereNotNull('approved_at')
-            ->with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user']) // تأكدنا من جلب الحقول
-            ->withCount('views');
-    }])->get();
+        // ✅ جلب فقط أول 15 إعلان بدون pagination
+        $ads = $query->take(15)->get();
 
-    $result = $categories->map(function ($category) use ($now) {
-        return [
-            'category_id' => $category->id,
-            'category_name_ar' => $category->name_ar,
-            'category_name_en' => $category->name_en,
+        // ✅ تحويل البيانات
+        $transformedAds = $ads->map(function ($ad) {
+            // تحويل صورة الغلاف
+            $ad->main_image = $ad->main_image ? url($ad->main_image) : null;
 
-            'ads' => $category->ads
-                ->map(function ($ad) use ($now) {
-                    $duration = $ad->approved_at ? $now->diffInSeconds($ad->approved_at) : 1;
-                    $views_per_second = $duration > 0 ? $ad->views_count / $duration : $ad->views_count;
+            // جلب أحدث إعلان للمستخدم  
+            $latestAd = Ad::where('user_id', $ad->user_id)->latest('created_at')->first();
 
-                    $ad->main_image = $ad->main_image ? url($ad->main_image) : null;
+            // تحويل الصور الفرعية  
+            $subImages = $ad->subImages->map(function ($image) {
+                $image->image = url($image->image);
+                return $image;
+            });
 
-                    $latestAd = Ad::where('user_id', $ad->user_id)->latest('created_at')->first();
 
-                    $ad->subImages->transform(function ($image) {
-                        $image->image = url($image->image);
-                        return $image;
-                    });
 
-                    $ad->fieldValues->transform(function ($fieldValue) {
-                        $fieldType = optional($fieldValue->fieldValue)->field_type;
-                        $value_ar = optional($fieldValue->fieldValue)->value_ar;
-                        $value_en = optional($fieldValue->fieldValue)->value_en;
+            $details = $ad->fieldValues->map(function ($fieldValue) {
+                $fieldType = optional($fieldValue->fieldValue)->field_type;
+                $value_ar = optional($fieldValue->fieldValue)->value_ar;
+                $value_en = optional($fieldValue->fieldValue)->value_en;
 
-                        if ($fieldType === 'text' && is_numeric($value_ar)) {
-                            $dbValue = DB::table('category_field_values')->where('id', $value_ar)->first();
+                if ($fieldType === 'text' && is_numeric($value_ar)) {
+                    $dbValue = DB::table('category_field_values')->where('id', $value_ar)->first();
 
-                            if ($dbValue && $dbValue->category_field_id == $fieldValue->category_field_id) {
-                                $value_ar = $dbValue->value_ar ?? $value_ar;
-                                $value_en = $dbValue->value_en ?? $value_en;
+                    if ($dbValue && $dbValue->category_field_id == $fieldValue->category_field_id) {
+                        $value_ar = $dbValue->value_ar ?? $value_ar;
+                        $value_en = $dbValue->value_en ?? $value_en;
+                    }
+                }
+
+                return [
+                    'field_id' => $fieldValue->category_field_id,
+                    'field_name' => [
+                        'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
+                        'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
+                    ],
+                    'field_value' => [
+                        'id' => $fieldValue->category_field_value_id,
+                        'ar' => $value_ar ?? 'غير معروف',
+                        'en' => $value_en ?? 'Unknown',
+                    ],
+                ];
+            });
+
+
+            // إرجاع البيانات بشكل منسق
+            return [
+                'id' => $ad->id,
+                'user_id' => $ad->user_id,
+                'user_name' => trim(optional($ad->user)->first_name . ' ' . optional($ad->user)->last_name) ?: null,
+                'user_image' => optional($ad->user)->profile_image ? url('profile_images/' . $ad->user->profile_image) : null,
+                'user_registered_at' => optional($ad->user)->created_at ?? null,
+                'last_ad_posted_at' => optional($latestAd)->created_at ?? null,
+                'title' => $ad->title,
+                'description' => $ad->description,
+                'address' => $ad->address,
+                'kilometer' => $ad->kilometer,
+                'price' => $ad->price,
+                'phone_number' => $ad->phone_number,
+                'status' => $ad->status,
+                'main_image' => $ad->main_image,
+                'sub_images' => $subImages,
+                'details' => $details,
+                'view_count' => $ad->views_count,
+            ];
+        });
+
+        return response()->json([
+            'ads' => $transformedAds,
+        ]);
+    }
+
+
+
+
+
+    public function indexAdsGroupedByCategory(Request $request)
+    {
+        $now = Carbon::now();
+
+        $categories = Category::with(['ads' => function ($query) use ($request) {
+            if ($request->has('country_id')) {
+                $query->where('country_id', $request->country_id);
+            }
+
+            $query->where('status', 'approved')
+                ->whereNotNull('approved_at')
+                ->with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user']) // تأكدنا من جلب الحقول
+                ->withCount('views');
+        }])->get();
+
+        $result = $categories->map(function ($category) use ($now) {
+            return [
+                'category_id' => $category->id,
+                'category_name_ar' => $category->name_ar,
+                'category_name_en' => $category->name_en,
+
+                'ads' => $category->ads
+                    ->map(function ($ad) use ($now) {
+                        $duration = $ad->approved_at ? $now->diffInSeconds($ad->approved_at) : 1;
+                        $views_per_second = $duration > 0 ? $ad->views_count / $duration : $ad->views_count;
+
+                        $ad->main_image = $ad->main_image ? url($ad->main_image) : null;
+
+                        $latestAd = Ad::where('user_id', $ad->user_id)->latest('created_at')->first();
+
+                        $ad->subImages->transform(function ($image) {
+                            $image->image = url($image->image);
+                            return $image;
+                        });
+
+                        $ad->fieldValues->transform(function ($fieldValue) {
+                            $fieldType = optional($fieldValue->fieldValue)->field_type;
+                            $value_ar = optional($fieldValue->fieldValue)->value_ar;
+                            $value_en = optional($fieldValue->fieldValue)->value_en;
+
+                            if ($fieldType === 'text' && is_numeric($value_ar)) {
+                                $dbValue = DB::table('category_field_values')->where('id', $value_ar)->first();
+
+                                if ($dbValue && $dbValue->category_field_id == $fieldValue->category_field_id) {
+                                    $value_ar = $dbValue->value_ar ?? $value_ar;
+                                    $value_en = $dbValue->value_en ?? $value_en;
+                                }
                             }
-                        }
+
+                            return [
+                                'field_id' => $fieldValue->category_field_id,
+                                'field_name' => [
+                                    'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
+                                    'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
+                                ],
+                                'field_value' => [
+                                    'id' => $fieldValue->category_field_value_id,
+                                    'ar' => $value_ar ?? 'غير معروف',
+                                    'en' => $value_en ?? 'Unknown',
+                                ],
+                            ];
+                        });
 
                         return [
-                            'field_id' => $fieldValue->category_field_id,
-                            'field_name' => [
-                                'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
-                                'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
-                            ],
-                            'field_value' => [
-                                'id' => $fieldValue->category_field_value_id,
-                                'ar' => $value_ar ?? 'غير معروف',
-                                'en' => $value_en ?? 'Unknown',
-                            ],
+                            'id' => $ad->id,
+                            'user_id' => $ad->user_id,
+                            'user_name' => trim(optional($ad->user)->first_name . ' ' . optional($ad->user)->last_name) ?: null,
+                            'user_image' => optional($ad->user)->profile_image ? url('profile_images/' . $ad->user->profile_image) : null,
+                            'user_registered_at' => optional($ad->user)->created_at ?? null,
+                            'last_ad_posted_at' => optional($latestAd)->created_at ?? null,
+                            'title' => $ad->title,
+                            'description' => $ad->description,
+                            'address' => $ad->address,
+                            'kilometer' => $ad->kilometer,
+                            'price' => $ad->price,
+                            'phone_number' => $ad->phone_number,
+                            'status' => $ad->status,
+                            'main_image' => $ad->main_image,
+                            'sub_images' => $ad->subImages,
+                            'details' => $ad->fieldValues,
+                            'view_count' => $ad->views_count,
+                            'views_per_second' => $views_per_second,
                         ];
-                    });
+                    })
+                    ->sortByDesc('views_per_second')
+                    ->values(),
+            ];
+        });
 
-                    return [
-                        'id' => $ad->id,
-                        'user_id' => $ad->user_id,
-                        'user_name' => trim(optional($ad->user)->first_name . ' ' . optional($ad->user)->last_name) ?: null,
-                        'user_image' => optional($ad->user)->profile_image ? url('profile_images/' . $ad->user->profile_image) : null,
-                        'user_registered_at' => optional($ad->user)->created_at ?? null,
-                        'last_ad_posted_at' => optional($latestAd)->created_at ?? null,
-                        'title' => $ad->title,
-                        'description' => $ad->description,
-                        'address' => $ad->address,
-                        'kilometer' => $ad->kilometer,
-                        'price' => $ad->price,
-                        'phone_number' => $ad->phone_number,
-                        'status' => $ad->status,
-                        'main_image' => $ad->main_image,
-                        'sub_images' => $ad->subImages,
-                        'details' => $ad->fieldValues,
-                        'view_count' => $ad->views_count,
-                        'views_per_second' => $views_per_second,
-                    ];
-                })
-                ->sortByDesc('views_per_second')
-                ->values(),
-        ];
-    });
-
-    return response()->json([
-        'categories' => $result,
-    ]);
-}
+        return response()->json([
+            'categories' => $result,
+        ]);
+    }
 
 
 
@@ -1120,97 +1126,98 @@ public function indexAdsGroupedByCategory(Request $request)
         return response()->json(['ads' => $ads]);
     }
 
-  
 
-public function updateStatus(Request $request, $id)
-{
-    $request->validate([
-        'status' => 'required|in:pending,approved,rejected',
-        'lang' => 'sometimes|in:ar,en',
-    ]);
-
-    $lang = $request->input('lang', 'ar'); // افتراضياً عربي
-
-    // جلب الإعلان فقط بدون العلاقات
-    $ad = Ad::findOrFail($id);
-
-    // تحديث الحالة
-    $ad->status = $request->status;
-    $ad->save();
-
-    // جلب اسم الدولة مباشرة من الجدول باستخدام id الدولة في الإعلان
-    $countryName = DB::table('countries')
-        ->where('id', $ad->country_id)
-        ->value('name_'.$lang);
-    $countryName = $countryName ?? ($lang === 'ar' ? 'بدون دولة' : 'No Country');
-
-    // جلب اسم الفئة مباشرة من الجدول باستخدام id الفئة في الإعلان
-    $categoryName = DB::table('categories')
-        ->where('id', $ad->category_id)
-        ->value('name_'.$lang);
-    $categoryName = $categoryName ?? ($lang === 'ar' ? 'بدون فئة' : 'No Category');
-
-    $status = $request->status;
-
-    $messages = [
-        'approved' => [
-            'ar' => "إعلانك في $categoryName - $countryName تم قبوله!",
-            'en' => "Your ad in $categoryName - $countryName has been approved!",
-        ],
-        'rejected' => [
-            'ar' => "إعلانك في $categoryName - $countryName تم رفضه!",
-            'en' => "Your ad in $categoryName - $countryName has been rejected!",
-        ],
-        'pending' => [
-            'ar' => "إعلانك في $categoryName - $countryName قيد المراجعة!",
-            'en' => "Your ad in $categoryName - $countryName is under review!",
-        ],
-    ];
-
-    // إنشاء إشعار لصاحب الإعلان
-    Notification::create([
-        'user_id' => $ad->user_id,
-        'ad_id' => $ad->id,
-        'type' => 'ad_status',
-        'message_ar' => $messages[$status]['ar'],
-        'message_en' => $messages[$status]['en'],
-        'is_read' => false,
-    ]);
-
-    // إذا الإعلان تم قبوله، إرسال إشعارات للمتابعين
-    if ($status === 'approved') {
-        $followersIds = DB::table('followers')
-            ->where('following_id', $ad->user_id)
-            ->pluck('follower_id')
-            ->toArray();
-
-        if (!empty($followersIds)) {
-            $now = now();
-            $notifications = array_map(function ($followerId) use ($ad, $categoryName, $countryName, $now) {
-                return [
-                    'user_id' => $followerId,
-                    'ad_id' => $ad->id,
-                    'type' => 'followed_user_ad_approved',
-                    'message_ar' => "المستخدم الذي تتابعه نشر إعلانًا جديدًا في $categoryName - $countryName",
-                    'message_en' => "A user you follow has posted a new ad in $categoryName - $countryName",
-                    'is_read' => false,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }, $followersIds);
-
-            Notification::insert($notifications);
-        }
-    }
-
-    return response()->json(['message' => 'تم تحديث حالة الإعلان بنجاح.']);
-}
-
-
-
-
-    public function indexbyadsid(Request $request)
+    public function updateStatus(Request $request, $id)
     {
+        $request->validate([
+            'status' => 'required|in:pending,approved,rejected',
+            'lang' => 'sometimes|in:ar,en',
+        ]);
+    
+        $lang = $request->input('lang', 'ar'); // افتراضياً عربي
+    
+        // جلب الإعلان فقط بدون العلاقات
+        $ad = Ad::findOrFail($id);
+    
+        $status = $request->status;
+        $ad->status = $status;
+    
+        if ($status === 'approved') {
+            $ad->accepted_at = now(); // تعيين وقت القبول
+        } else {
+            $ad->accepted_at = null; // مسح وقت القبول لو لم يكن approved
+        }
+    
+        $ad->save();
+    
+        // جلب اسم الدولة مباشرة من الجدول باستخدام id الدولة في الإعلان
+        $countryName = DB::table('countries')
+            ->where('id', $ad->country_id)
+            ->value('name_' . $lang);
+        $countryName = $countryName ?? ($lang === 'ar' ? 'بدون دولة' : 'No Country');
+    
+        // جلب اسم الفئة مباشرة من الجدول باستخدام id الفئة في الإعلان
+        $categoryName = DB::table('categories')
+            ->where('id', $ad->category_id)
+            ->value('name_' . $lang);
+        $categoryName = $categoryName ?? ($lang === 'ar' ? 'بدون فئة' : 'No Category');
+    
+        $messages = [
+            'approved' => [
+                'ar' => "إعلانك في $categoryName - $countryName تم قبوله!",
+                'en' => "Your ad in $categoryName - $countryName has been approved!",
+            ],
+            'rejected' => [
+                'ar' => "إعلانك في $categoryName - $countryName تم رفضه!",
+                'en' => "Your ad in $categoryName - $countryName has been rejected!",
+            ],
+            'pending' => [
+                'ar' => "إعلانك في $categoryName - $countryName قيد المراجعة!",
+                'en' => "Your ad in $categoryName - $countryName is under review!",
+            ],
+        ];
+    
+        // إنشاء إشعار لصاحب الإعلان
+        Notification::create([
+            'user_id' => $ad->user_id,
+            'ad_id' => $ad->id,
+            'type' => 'ad_status',
+            'message_ar' => $messages[$status]['ar'],
+            'message_en' => $messages[$status]['en'],
+            'is_read' => false,
+        ]);
+    
+        // إذا الإعلان تم قبوله، إرسال إشعارات للمتابعين
+        if ($status === 'approved') {
+            $followersIds = DB::table('followers')
+                ->where('following_id', $ad->user_id)
+                ->pluck('follower_id')
+                ->toArray();
+    
+            if (!empty($followersIds)) {
+                $now = now();
+                $notifications = array_map(function ($followerId) use ($ad, $categoryName, $countryName, $now) {
+                    return [
+                        'user_id' => $followerId,
+                        'ad_id' => $ad->id,
+                        'type' => 'followed_user_ad_approved',
+                        'message_ar' => "المستخدم الذي تتابعه نشر إعلانًا جديدًا في $categoryName - $countryName",
+                        'message_en' => "A user you follow has posted a new ad in $categoryName - $countryName",
+                        'is_read' => false,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }, $followersIds);
+    
+                Notification::insert($notifications);
+            }
+        }
+    
+        return response()->json(['message' => 'تم تحديث حالة الإعلان بنجاح.']);
+    }
+    
+    public function indexbyadsid(Request $request)
+    { 
         $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user', 'adViews', 'features.value.field']);
 
         $query->leftJoin('car_models', 'ads.car_model', '=', 'car_models.id')
@@ -1287,7 +1294,9 @@ public function updateStatus(Request $request, $id)
                 'user_name' => trim(optional($ad->user)->first_name . ' ' . optional($ad->user)->last_name) ?: null,
                 'user_image' => optional($ad->user)->profile_image ? url('profile_images/' . $ad->user->profile_image) : null,
                 'user_registered_at' => optional($ad->user)->created_at ?? null,
-                'last_ad_posted_at' => optional($latestAd)->created_at ?? null,
+                'last_ad_posted_at' => ($latestAd && $latestAd->status === 'approved')
+    ? ($latestAd->accepted_at ? \Carbon\Carbon::parse($latestAd->accepted_at)->toISOString() : null)
+    : optional($latestAd)->created_at,
                 'title' => $ad->title,
                 'category_id' => $ad->category_id,
                 'description' => $ad->description,
@@ -1304,6 +1313,9 @@ public function updateStatus(Request $request, $id)
                 'car_model_id' => $ad->car_model_id,
                 'car_model_ar' => $ad->car_model_ar,
                 'car_model_en' => $ad->car_model_en,
+                'accepted_at' => $ad->accepted_at ? \Carbon\Carbon::parse($ad->accepted_at)->toISOString() : null,
+
+
             ];
         });
 
@@ -1421,31 +1433,40 @@ public function updateStatus(Request $request, $id)
         return response()->json(['favorites' => $favorites]);
     }
 
+public function seen(Request $request, $ad_id)
+{
+    // جلب الإعلان والتأكد من أنه موجود وحالته approved
+    $ad = Ad::where('id', $ad_id)->where('status', 'approved')->firstOrFail();
 
-    public function seen(Request $request, $ad_id)
-    {
-        // جلب الإعلان والتأكد من أنه موجود وحالته approved
-        $ad = Ad::where('id', $ad_id)->where('status', 'approved')->firstOrFail();
+    // جلب المستخدم المسجل (لو موجود)
+    $user = auth('api')->user(); // أو auth()->user() حسب نوع التوثيق
 
-        // جلب المستخدم المسجل (لو موجود)
-        $user = auth('api')->user(); // أو auth()->user() حسب نوع التوثيق
-
-        // التأكد إن المستخدم مش هو صاحب الإعلان
-        if ($user && $user->id == $ad->user_id) {
-            return response()->json(['message' => 'You cannot view your own ad.'], 403);
-        }
-
-        // استخدام IP أو session ID لو المستخدم غير مسجل
-        $identifier = $user ? 'user_' . $user->id : 'guest_' . $request->ip();
-
-        // تسجيل المشاهدة
-        AdView::create([
-            'identifier' => $identifier,
-            'ad_id' => $ad_id,
-        ]);
-
-        return response()->json(['message' => 'Ad view recorded successfully']);
+    // التأكد إن المستخدم مش هو صاحب الإعلان
+    if ($user && $user->id == $ad->user_id) {
+        return response()->json(['message' => 'You cannot view your own ad.'], 403);
     }
+
+    // تحديد الهوية بناءً على المستخدم أو IP الزائر
+    $identifier = $user ? 'user_' . $user->id : 'guest_' . $request->ip();
+
+    // التحقق إذا كان قد سبق تسجيل مشاهدة لهذا الإعلان من نفس الزائر
+    $alreadyViewed = AdView::where('identifier', $identifier)
+        ->where('ad_id', $ad_id)
+        ->exists();
+
+    if ($alreadyViewed) {
+        return response()->json(['message' => 'View already recorded previously.'], 200);
+    }
+
+    // تسجيل المشاهدة لأول مرة فقط
+    AdView::create([
+        'identifier' => $identifier,
+        'ad_id' => $ad_id,
+    ]);
+
+    return response()->json(['message' => 'Ad view recorded successfully']);
+}
+
 
 
     public function getUserProfile(Request $request, $user_id)
@@ -1526,57 +1547,57 @@ public function updateStatus(Request $request, $id)
             $query->where('country_id', $request->country_id);
         }
         $ads = $query->limit(15)->get();
-         $adsData = $ads->map(function ($ad) {
-    $adArray = $ad->toArray();
-    // إزالة field_values من المصفوفة
-    unset($adArray['field_values']);
+        $adsData = $ads->map(function ($ad) {
+            $adArray = $ad->toArray();
+            // إزالة field_values من المصفوفة
+            unset($adArray['field_values']);
 
-    // تحويل صورة الغلاف
-    $adArray['main_image'] = $ad->main_image ? url($ad->main_image) : null;
+            // تحويل صورة الغلاف
+            $adArray['main_image'] = $ad->main_image ? url($ad->main_image) : null;
 
-    // تحويل صور المستخدم
-    if (isset($adArray['user']['profile_image'])) {
-        $adArray['user']['profile_image'] = url('profile_images/' . $adArray['user']['profile_image']);
-    }
-    if (isset($adArray['user']['cover_image'])) {
-        $adArray['user']['cover_image'] = url('cover_images/' . $adArray['user']['cover_image']);
-    }
-
-    // معلومات المالك
-    $adArray['ownerName'] = $ad->user ? $ad->user->first_name . ' ' . $ad->user->last_name : null;
-    $adArray['ownerPhoto'] = $adArray['user']['profile_image'] ?? null;
-    $adArray['created_at'] = $ad->created_at->toDateTimeString();
-
-    // معالجة التفاصيل (details فقط)
-    $adArray['details'] = $ad->fieldValues->map(function ($fieldValue) {
-        $arVal = $fieldValue->fieldValue?->value_ar;
-        $enVal = $fieldValue->fieldValue?->value_en;
-
-        // التحقق من النوع "text" ومعالجة القيمة إذا لزم
-        if ($fieldValue->fieldValue?->field_type === 'text' && is_numeric($arVal)) {
-            $textValue = \DB::table('category_field_values')->find($arVal);
-            if ($textValue && $textValue->category_field_id == $fieldValue->category_field_id) {
-                $arVal = $textValue->value_ar;
-                $enVal = $textValue->value_en;
+            // تحويل صور المستخدم
+            if (isset($adArray['user']['profile_image'])) {
+                $adArray['user']['profile_image'] = url('profile_images/' . $adArray['user']['profile_image']);
             }
-        }
+            if (isset($adArray['user']['cover_image'])) {
+                $adArray['user']['cover_image'] = url('cover_images/' . $adArray['user']['cover_image']);
+            }
 
-        return [
-            'field_id' => $fieldValue->category_field_id,
-            'field_name' => [
-                'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
-                'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
-            ],
-            'field_value' => [
-                'id' => $fieldValue->category_field_value_id,
-                'ar' => $arVal ?? 'غير معروف',
-                'en' => $enVal ?? 'Unknown',
-            ],
-        ];
-    });
+            // معلومات المالك
+            $adArray['ownerName'] = $ad->user ? $ad->user->first_name . ' ' . $ad->user->last_name : null;
+            $adArray['ownerPhoto'] = $adArray['user']['profile_image'] ?? null;
+            $adArray['created_at'] = $ad->created_at->toDateTimeString();
 
-    return $adArray;
-});
+            // معالجة التفاصيل (details فقط)
+            $adArray['details'] = $ad->fieldValues->map(function ($fieldValue) {
+                $arVal = $fieldValue->fieldValue?->value_ar;
+                $enVal = $fieldValue->fieldValue?->value_en;
+
+                // التحقق من النوع "text" ومعالجة القيمة إذا لزم
+                if ($fieldValue->fieldValue?->field_type === 'text' && is_numeric($arVal)) {
+                    $textValue = \DB::table('category_field_values')->find($arVal);
+                    if ($textValue && $textValue->category_field_id == $fieldValue->category_field_id) {
+                        $arVal = $textValue->value_ar;
+                        $enVal = $textValue->value_en;
+                    }
+                }
+
+                return [
+                    'field_id' => $fieldValue->category_field_id,
+                    'field_name' => [
+                        'ar' => optional($fieldValue->field)->field_ar ?? 'غير معروف',
+                        'en' => optional($fieldValue->field)->field_en ?? 'Unknown',
+                    ],
+                    'field_value' => [
+                        'id' => $fieldValue->category_field_value_id,
+                        'ar' => $arVal ?? 'غير معروف',
+                        'en' => $enVal ?? 'Unknown',
+                    ],
+                ];
+            });
+
+            return $adArray;
+        });
 
 
         return response()->json([

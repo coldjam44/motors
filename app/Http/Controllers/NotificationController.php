@@ -7,20 +7,19 @@ use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
- public function getUserNotifications()
+   public function getUserNotifications()
 {
     $user = auth()->user();
 
     $notifications = Notification::where('user_id', $user->id)
         ->orderBy('created_at', 'desc')
-        ->with(['ad', 'fromUser']) // جلب بيانات الإعلان والمستخدم الذي أرسل الإشعار
+        ->with(['ad', 'fromUser'])
         ->get();
 
-    $notifications->transform(function ($notification) {
+    $notifications->transform(function ($notification) use ($user) {
         $fromUser = optional($notification->fromUser);
         $fromUserName = trim($fromUser->first_name . ' ' . $fromUser->last_name);
 
-        // تحديد الرسالة بناءً على نوع الإشعار
         if ($notification->type === 'follow') {
             $message_ar = "$fromUserName بدأ بمتابعتك";
             $message_en = "$fromUserName started following you";
@@ -32,7 +31,23 @@ class NotificationController extends Controller
             $message_en = $notification->message_en;
         }
 
-        // تحديد الصورة
+        // 🟡 ترجمة حالات الإعلان للعربية
+        $statusTranslations = [
+            'pending' => 'قيد الانتظار',
+            'approved' => 'مقبول',
+            'rejected' => 'مرفوض',
+            'expired' => 'منتهي',
+        ];
+
+        // ✅ إضافة حالة الإعلان فقط لو المستخدم أدمن
+        if ($notification->ad_id && $notification->ad && $user->role === 'admin') {
+            $status = $notification->ad->status;
+            $status_ar = $statusTranslations[$status] ?? $status;
+
+            $message_en .= " and the status of the ad is $status";
+            $message_ar .= "، وحالة الإعلان حاليا هي $status_ar";
+        }
+
         $image = null;
         if ($notification->type === 'follow') {
             $image = $fromUser->profile_image ? url('profile_images/' . $fromUser->profile_image) : null;
@@ -57,6 +72,7 @@ class NotificationController extends Controller
 
     return response()->json($notifications);
 }
+
 
    public function markAsRead(Request $request)
 {

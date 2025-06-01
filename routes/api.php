@@ -165,9 +165,6 @@ Route::middleware(['auth:api', 'is.admin'])->get('/ads/stats', [AdController::cl
 
 Route::middleware(['auth:api', 'is.admin'])->get('/userauths/count', [UserauthController::class, 'countUsers']);
 
-
-
-
 Route::post('/categories/{id}/toggle-kilometers', [CategoryController::class, 'toggleKilometersApi']);
 
 Route::post('/categories/{categoryId}/makes/{makeId}/models', [CategoryFieldController::class, 'storeCarModels']);

@@ -9,61 +9,48 @@ use Illuminate\Support\Carbon;
 class VisitorLogController extends Controller
 {
 
-    public function track(Request $request)
-    {
-        $ip = $request->ip();
-        $countryId = $request->input('country_id');
-        $categoryId = $request->input('category_id');
-        $now = now();
-    
-        $responses = [];
-    
-        // أغلق كل السجلات المفتوحة لنفس IP بدون left_at
-        VisitorLog::where('ip_address', $ip)
-            ->whereNull('left_at')
-            ->update(['left_at' => $now]);
-    
-        $responses[] = [
-            'message_en' => 'Previous open visitor sessions closed for this IP.',
-            'message_ar' => 'تم إغلاق جميع الجلسات المفتوحة السابقة لهذا الـ IP.',
-        ];
-    
-        // Helper لتسجيل دخول جديد
-        $logVisitor = function ($country, $category, $enMessage, $arMessage) use ($ip, $now, &$responses) {
-            VisitorLog::create([
-                'ip_address' => $ip,
-                'country_id' => $country,
-                'category_id' => $category,
-                'general_visitor' => is_null($country) && is_null($category),
-                'visited_at' => $now,
-            ]);
-    
-            $responses[] = [
-                'message_en' => $enMessage,
-                'message_ar' => $arMessage,
-            ];
-        };
-    
-        // تسجيل الدخول حسب المدخلات
-        if (is_null($countryId) && is_null($categoryId)) {
-            $logVisitor(null, null, 'Visitor tracked for the whole site.', 'تم تسجيل زائر للموقع كامل.');
-        } elseif (!is_null($countryId) && is_null($categoryId)) {
-            $logVisitor($countryId, null, 'Visitor tracked browsing ads from a specific country.', 'تم تسجيل زائر يتصفح إعلانات من دولة محددة.');
-        } elseif (is_null($countryId) && !is_null($categoryId)) {
-            $logVisitor(null, $categoryId, 'Visitor tracked browsing ads in a specific category.', 'تم تسجيل زائر يتصفح إعلانات في تصنيف محدد.');
-        } else {
-            $logVisitor($countryId, null, 'Visitor tracked browsing ads from a specific country.', 'تم تسجيل زائر يتصفح إعلانات من دولة محددة.');
-            $logVisitor(null, $categoryId, 'Visitor tracked browsing ads in a specific category.', 'تم تسجيل زائر يتصفح إعلانات في تصنيف محدد.');
-        }
-    
-        // إحصائيات الزوار
-        $statisticsData = app(\App\Http\Controllers\VisitorLogController::class)->statistics($request)->getData(true);
-    
-        return response()->json([
-            'messages' => $responses,
-            'statistics' => $statisticsData,
-        ]);
-    }
+     public function track(Request $request)
+{
+    $ip = $request->ip();
+    $countryId = $request->input('country_id');
+    $categoryId = $request->input('category_id');
+    $now = now();
+
+    $responses = [];
+
+    // أغلق كل السجلات المفتوحة لنفس IP بدون left_at
+    VisitorLog::where('ip_address', $ip)
+        ->whereNull('left_at')
+        ->update(['left_at' => $now]);
+
+    $responses[] = [
+        'message_en' => 'Previous open visitor sessions closed for this IP.',
+        'message_ar' => 'تم إغلاق جميع الجلسات المفتوحة السابقة لهذا الـ IP.',
+    ];
+
+    // تسجيل دخول جديد بسجل واحد دائمًا
+    VisitorLog::create([
+        'ip_address' => $ip,
+        'country_id' => $countryId,
+        'category_id' => $categoryId,
+        'general_visitor' => true, // دايمًا 1
+        'visited_at' => $now,
+    ]);
+
+    $responses[] = [
+        'message_en' => 'Visitor tracked successfully.',
+        'message_ar' => 'تم تسجيل الزائر بنجاح.',
+    ];
+
+    // إحصائيات الزوار
+    $statisticsData = app(\App\Http\Controllers\VisitorLogController::class)->statistics($request)->getData(true);
+
+    return response()->json([
+        'messages' => $responses,
+        'statistics' => $statisticsData,
+    ]);
+}
+
     
      public function statistics(Request $request)
 {

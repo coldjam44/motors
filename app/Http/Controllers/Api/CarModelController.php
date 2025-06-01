@@ -9,7 +9,15 @@ class CarModelController extends Controller
 {
     public function getByMakeId($makeId)
     {
-        $models = CarModel::where('category_field_id', $makeId)->get();
+        // تحديد اللغة من إعدادات التطبيق أو من الهيدر، والافتراضية "ar"
+        $locale = request()->header('Accept-Language', 'ar');
+        $orderColumn = $locale === 'en' ? 'value_en' : 'value_ar';
+    
+        $models = CarModel::where('category_field_id', $makeId)
+            ->orderBy($orderColumn, 'asc')
+            ->get();
+    
         return response()->json($models);
     }
+    
 }
