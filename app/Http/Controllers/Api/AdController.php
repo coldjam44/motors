@@ -11,7 +11,6 @@ use App\Models\CategoryFieldValue;
 use App\Models\Follower;
 use Intervention\Image\Facades\Image;
 use Illuminate\Support\Facades\DB;
-
 use App\Models\AdImage;
 use App\Models\AdView;
 use App\Models\Notification;
@@ -119,6 +118,10 @@ class AdController extends Controller
         $image->insert(public_path('watermark.png'), 'center'); // إضافة العلامة المائية
         $image->save($mainImagePath);
 
+
+              $categoryName = Category::find($request->category_id)->name_ar ?? '';
+    $countryName = Country::find($request->country_id)->name_ar ?? '';
+
         // إنشاء الإعلان
         $ad = Ad::create([
             'user_id' => $adUserId,
@@ -141,8 +144,8 @@ class AdController extends Controller
             'user_id' => $adUserId,
             'from_user_id' => null,
             'type' => 'ad_status',
-            'message_ar' => 'إعلانك قيد المراجعة!',
-            'message_en' => 'Your ad is under review!',
+           'message_ar' => "إعلانك في قسم {$categoryName} ب{$countryName} قيد المراجعة!",
+        'message_en' => "Your ad in {$categoryName} at {$countryName} is under review!",
             'ad_id' => $ad->id,
             'is_read' => false,
         ]);
@@ -156,8 +159,8 @@ class AdController extends Controller
                     'from_user_id' => $user->id,
                     'ad_id' => $ad->id,
                     'type' => 'new_ad',
-                    'message_ar' => "{$user->first_name} نشر إعلان جديد!",
-                    'message_en' => "{$user->first_name} posted a new ad!",
+                'message_ar' => "{$user->first_name} نشر إعلان جديد في {$categoryName} ب{$countryName}!",
+                'message_en' => "{$user->first_name} posted a new ad in {$categoryName} at {$countryName}!",
                 ]);
             }
         }
@@ -259,8 +262,8 @@ class AdController extends Controller
                 'from_user_id' => $user->id,  // المستخدم اللي أنشأ الإعلان
                 'ad_id' => $ad->id,
                 'type' => 'admin_new_ad', // نوع جديد مخصص للإدمنز
-                'message_ar' => "تم إنشاء إعلان جديد بعنوان: " . $ad->title,
-                'message_en' => "A new ad has been created titled: " . $ad->title,
+'message_ar' => "تم إنشاء إعلان جديد بعنوان: " . $ad->title . " في قسم {$categoryName} ب{$countryName}",
+            'message_en' => "A new ad has been created titled: " . $ad->title . " in {$categoryName} at {$countryName}",
                 'is_read' => false,
             ]);
         }
@@ -330,7 +333,7 @@ class AdController extends Controller
             'kilometer',
             'price',
             'phone_number',
-            'car_model', // Update car_model
+            'car_model',
         ]));
 
         // إذا قام المستخدم برفع صورة رئيسية جديدة
@@ -448,6 +451,9 @@ class AdController extends Controller
             }
         }
 
+        $categoryName = Category::find($request->category_id)?->name_ar ?? '';
+        $countryName = Country::find($request->country_id)?->name_ar ?? '';
+
         if ($ad->status === 'pending') {
             $admins = Userauth::where('role', 'admin')->get();
             foreach ($admins as $admin) {
@@ -455,8 +461,8 @@ class AdController extends Controller
                     'user_id' => $admin->id,
                     'from_user_id' => $user->id,
                     'type' => 'ad_review',
-                    'message_ar' => "يوجد إعلان جديد قيد المراجعة من المستخدم {$user->first_name}",
-                    'message_en' => "A new ad is pending review from user {$user->first_name}",
+                    'message_ar' => "يوجد إعلان جديد في قسم '{$categoryName}' من دولة '{$countryName}' قيد المراجعة من المستخدم {$user->first_name}",
+                    'message_en' => "A new ad in category '{$categoryName}' from country '{$countryName}' is pending review from user {$user->first_name}",
                     'ad_id' => $ad->id,
                     'is_read' => false,
                 ]);
@@ -468,8 +474,8 @@ class AdController extends Controller
                 'user_id' => $user->id,
                 'from_user_id' => null,
                 'type' => 'ad_status',
-                'message_ar' => 'إعلانك قيد المراجعة!',
-                'message_en' => 'Your ad is under review!',
+                'message_ar' => "إعلانك في قسم '{$categoryName}' بدولة '{$countryName}' قيد المراجعة!",
+                'message_en' => "Your ad in category '{$categoryName}' from country '{$countryName}' is under review!",
                 'ad_id' => $ad->id,
                 'is_read' => false,
             ]);
@@ -1114,71 +1120,92 @@ public function indexAdsGroupedByCategory(Request $request)
         return response()->json(['ads' => $ads]);
     }
 
+  
 
+public function updateStatus(Request $request, $id)
+{
+    $request->validate([
+        'status' => 'required|in:pending,approved,rejected',
+        'lang' => 'sometimes|in:ar,en',
+    ]);
 
+    $lang = $request->input('lang', 'ar'); // افتراضياً عربي
 
-    public function updateStatus(Request $request, $id)
-    {
-        $validator = Validator::make($request->all(), [
-            'status' => 'required|in:pending,approved,rejected',
-        ]);
+    // جلب الإعلان فقط بدون العلاقات
+    $ad = Ad::findOrFail($id);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+    // تحديث الحالة
+    $ad->status = $request->status;
+    $ad->save();
 
-        $ad = Ad::find($id);
-        if (!$ad) {
-            return response()->json(['message' => 'Ad not found'], 404);
-        }
+    // جلب اسم الدولة مباشرة من الجدول باستخدام id الدولة في الإعلان
+    $countryName = DB::table('countries')
+        ->where('id', $ad->country_id)
+        ->value('name_'.$lang);
+    $countryName = $countryName ?? ($lang === 'ar' ? 'بدون دولة' : 'No Country');
 
-        $ad->update(['status' => $request->status]);
+    // جلب اسم الفئة مباشرة من الجدول باستخدام id الفئة في الإعلان
+    $categoryName = DB::table('categories')
+        ->where('id', $ad->category_id)
+        ->value('name_'.$lang);
+    $categoryName = $categoryName ?? ($lang === 'ar' ? 'بدون فئة' : 'No Category');
 
-        $messages = [
-            'approved' => [
-                'ar' => 'إعلانك تم قبوله!',
-                'en' => 'Your ad has been approved!',
-            ],
-            'rejected' => [
-                'ar' => 'إعلانك تم رفضه!',
-                'en' => 'Your ad has been rejected!',
-            ],
-            'pending' => [
-                'ar' => 'إعلانك قيد المراجعة!',
-                'en' => 'Your ad is under review!',
-            ],
-        ];
+    $status = $request->status;
 
-        // إشعار لصاحب الإعلان
-        Notification::create([
-            'user_id' => $ad->user_id,
-            'ad_id' => $ad->id,
-            'type' => 'ad_status',
-            'message_ar' => $messages[$request->status]['ar'],
-            'message_en' => $messages[$request->status]['en'],
-            'is_read' => false,
-        ]);
+    $messages = [
+        'approved' => [
+            'ar' => "إعلانك في $categoryName - $countryName تم قبوله!",
+            'en' => "Your ad in $categoryName - $countryName has been approved!",
+        ],
+        'rejected' => [
+            'ar' => "إعلانك في $categoryName - $countryName تم رفضه!",
+            'en' => "Your ad in $categoryName - $countryName has been rejected!",
+        ],
+        'pending' => [
+            'ar' => "إعلانك في $categoryName - $countryName قيد المراجعة!",
+            'en' => "Your ad in $categoryName - $countryName is under review!",
+        ],
+    ];
 
-        // إشعار للمتابعين إذا الإعلان approved
-        if ($request->status === 'approved') {
-            $user = $ad->user; // صاحب الإعلان
-            $followers = Follower::where('following_id', $user->id)->pluck('follower_id');
+    // إنشاء إشعار لصاحب الإعلان
+    Notification::create([
+        'user_id' => $ad->user_id,
+        'ad_id' => $ad->id,
+        'type' => 'ad_status',
+        'message_ar' => $messages[$status]['ar'],
+        'message_en' => $messages[$status]['en'],
+        'is_read' => false,
+    ]);
 
-            foreach ($followers as $followerId) {
-                Notification::create([
+    // إذا الإعلان تم قبوله، إرسال إشعارات للمتابعين
+    if ($status === 'approved') {
+        $followersIds = DB::table('followers')
+            ->where('following_id', $ad->user_id)
+            ->pluck('follower_id')
+            ->toArray();
+
+        if (!empty($followersIds)) {
+            $now = now();
+            $notifications = array_map(function ($followerId) use ($ad, $categoryName, $countryName, $now) {
+                return [
                     'user_id' => $followerId,
-                    'from_user_id' => $user->id,
                     'ad_id' => $ad->id,
-                    'type' => 'new_ad',
-                    'message_ar' => "{$user->first_name} نشر إعلان جديد!",
-                    'message_en' => "{$user->first_name} posted a new ad!",
+                    'type' => 'followed_user_ad_approved',
+                    'message_ar' => "المستخدم الذي تتابعه نشر إعلانًا جديدًا في $categoryName - $countryName",
+                    'message_en' => "A user you follow has posted a new ad in $categoryName - $countryName",
                     'is_read' => false,
-                ]);
-            }
-        }
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }, $followersIds);
 
-        return response()->json(['message' => 'Ad status updated successfully', 'ad' => $ad], 200);
+            Notification::insert($notifications);
+        }
     }
+
+    return response()->json(['message' => 'تم تحديث حالة الإعلان بنجاح.']);
+}
+
 
 
 

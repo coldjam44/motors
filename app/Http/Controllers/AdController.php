@@ -28,7 +28,7 @@ class AdController extends Controller
         return view('pages.ads.ads-management', compact('ads'));
     }
 
-
+ 
 public function updateStatus(Request $request, $id)
 {
     $request->validate([
@@ -40,34 +40,35 @@ public function updateStatus(Request $request, $id)
     $ad->status = $request->status;
     $ad->save();
 
-    // الرسائل حسب الحالة
+    $countryName = $ad->country ? $ad->country->name : 'بدون دولة';
+    $categoryName = $ad->category ? $ad->category->name : 'بدون فئة';
+    $status = $request->status;
+
     $messages = [
         'approved' => [
-            'ar' => 'إعلانك تم قبوله!',
-            'en' => 'Your ad has been approved!',
+            'ar' => "إعلانك في $categoryName - $countryName تم قبوله!",
+            'en' => "Your ad in $categoryName - $countryName has been approved!",
         ],
         'rejected' => [
-            'ar' => 'إعلانك تم رفضه!',
-            'en' => 'Your ad has been rejected!',
+            'ar' => "إعلانك في $categoryName - $countryName تم رفضه!",
+            'en' => "Your ad in $categoryName - $countryName has been rejected!",
         ],
         'pending' => [
-            'ar' => 'إعلانك قيد المراجعة!',
-            'en' => 'Your ad is under review!',
+            'ar' => "إعلانك في $categoryName - $countryName قيد المراجعة!",
+            'en' => "Your ad in $categoryName - $countryName is under review!",
         ],
     ];
 
-    // إرسال إشعار لصاحب الإعلان
     Notification::create([
         'user_id' => $ad->user_id,
         'ad_id' => $ad->id,
         'type' => 'ad_status',
-        'message_ar' => $messages[$request->status]['ar'],
-        'message_en' => $messages[$request->status]['en'],
+        'message_ar' => $messages[$status]['ar'],
+        'message_en' => $messages[$status]['en'],
         'is_read' => false,
     ]);
 
-    // إذا الحالة approved، نرسل إشعار للمتابعين
-    if ($request->status === 'approved') {
+    if ($status === 'approved') {
         $user = $ad->user; // صاحب الإعلان
         $followers = Follower::where('following_id', $user->id)->pluck('follower_id');
 
@@ -77,8 +78,8 @@ public function updateStatus(Request $request, $id)
                 'from_user_id' => $user->id,
                 'ad_id' => $ad->id,
                 'type' => 'new_ad',
-                'message_ar' => "{$user->first_name} نشر إعلان جديد!",
-                'message_en' => "{$user->first_name} posted a new ad!",
+                'message_ar' => "{$user->first_name} نشر إعلان جديد في $categoryName - $countryName!",
+                'message_en' => "{$user->first_name} posted a new ad in $categoryName - $countryName!",
                 'is_read' => false,
             ]);
         }
@@ -86,6 +87,8 @@ public function updateStatus(Request $request, $id)
 
     return redirect()->back()->with('success', 'تم تحديث حالة الإعلان بنجاح');
 }
+
+
 
 public function destroy($id)
 {
