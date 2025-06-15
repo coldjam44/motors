@@ -306,7 +306,7 @@ class AdController extends Controller
         $validator = Validator::make($request->all(), [
             'category_id' => 'sometimes|exists:categories,id',
             'country_id' => 'sometimes|exists:countries,id',
-           // 'city_id' => 'sometimes|exists:cities,id',
+            // 'city_id' => 'sometimes|exists:cities,id',
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
             'address' => 'sometimes|string',
@@ -645,10 +645,41 @@ class AdController extends Controller
     }
 
 
+
+    function getRealFieldValueIds($targetValueId, $fieldId)
+    {
+        $matchedIds = [];
+
+        $allValues = \App\Models\CategoryFieldValue::where('category_field_id', $fieldId)->get();
+
+        foreach ($allValues as $value) {
+            $current = $value;
+            $depth = 0;
+            $maxDepth = 10;
+
+            while (is_numeric($current->value_ar) && $depth < $maxDepth) {
+                $next = $allValues->firstWhere('id', $current->value_ar);
+                if (!$next) break;
+                $current = $next;
+                $depth++;
+            }
+
+            if ($current->id == $targetValueId || $current->value_ar == $targetValueId) {
+                $matchedIds[] = $value->id;
+            }
+        }
+
+        return $matchedIds;
+    }
+
+
     public function indexadsusers(Request $request)
     {
+        // $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user'])
+        //     ->withCount('views');
         $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user'])
-            ->withCount('views');
+            ->withCount('views')
+            ->orderBy('created_at', 'desc');
 
         // ✅ تحقق من الفلاتر المدخلة
         $validFilters = [
@@ -676,12 +707,28 @@ class AdController extends Controller
             'max_kilometer' => '<=',
         ];
 
-        foreach ($filterMap as $field => $operator) {
-            if ($request->has($field)) {
-                $column = str_replace(['min_', 'max_'], '', $field);
-                $query->where($column, $operator, $request->$field);
-            }
-        }
+
+        // ✅ تطبيق الفلاتر على الاستعلام
+     foreach ($filterMap as $field => $operator) {
+    if ($request->has($field)) {
+        $column = str_replace(['min_', 'max_'], '', $field);
+        $value = $request->$field;
+
+        $query->where(function ($q) use ($column, $operator, $value) {
+            $q->where($column, $operator, $value)
+              ->orWhereNull($column);
+        });
+    }
+}
+
+
+
+        // foreach ($filterMap as $field => $operator) {
+        //     if ($request->has($field)) {
+        //         $column = str_replace(['min_', 'max_'], '', $field);
+        //         $query->where($column, $operator, $request->$field);
+        //     }
+        // }
 
         // ✅ فلترة حسب الحقول المخصصة
         if ($request->has('fields')) {
@@ -693,10 +740,24 @@ class AdController extends Controller
                     return response()->json(['ads' => [], 'pagination' => []], 200);
                 }
 
-                $query->whereHas('fieldValues', function ($q) use ($fieldId, $valueId) {
-                    $q->where('category_field_id', $fieldId)
-                        ->where('category_field_value_id', $valueId);
-                });
+                $matchedValueIds = $this->getRealFieldValueIds($valueId, $fieldId);
+
+               $query->where(function ($q) use ($fieldId, $matchedValueIds) {
+    $q->whereHas('fieldValues', function ($sub) use ($fieldId, $matchedValueIds) {
+        $sub->where('category_field_id', $fieldId)
+            ->whereIn('category_field_value_id', $matchedValueIds);
+    })
+    ->orWhereDoesntHave('fieldValues', function ($sub) use ($fieldId) {
+        $sub->where('category_field_id', $fieldId);
+    });
+});
+
+
+
+                // $query->whereHas('fieldValues', function ($q) use ($fieldId, $matchedValueIds) {
+                //     $q->where('category_field_id', $fieldId)
+                //         ->whereIn('category_field_value_id', $matchedValueIds);
+                // });
             }
         }
 
@@ -1289,29 +1350,60 @@ class AdController extends Controller
                 $valueAr = $fieldValueModel->value_ar ?? 'غير معروف';
                 $valueEn = $fieldValueModel->value_en ?? 'Unknown';
 
+
+
+                $fieldValueId = $fieldValue->category_field_value_id;
+
                 if ($fieldType === 'text') {
                     $currentValueId = $valueAr;
-                    $maxDepth = 10; // لتجنب الحلقات اللامتناهية
+                    $maxDepth = 10;
                     $depth = 0;
 
                     while (is_numeric($currentValueId) && $depth < $maxDepth) {
                         $realValue = \App\Models\CategoryFieldValue::find($currentValueId);
 
                         if (!$realValue || $realValue->category_field_id != $fieldValue->category_field_id) {
-                            break; // خروج إذا القيمة غير موجودة أو الحقل مختلف
+                            break;
                         }
 
                         $valueAr = $realValue->value_ar ?? $valueAr;
                         $valueEn = $realValue->value_en ?? $valueEn;
 
+                        $fieldValueId = $realValue->id; // ✅ هنا التعديل: خزن ID الفعلي النهائي
+
                         if (!is_numeric($valueAr)) {
-                            break; // وجدنا النص الحقيقي
+                            break;
                         }
 
-                        $currentValueId = $valueAr; // نكمل البحث
+                        $currentValueId = $valueAr;
                         $depth++;
                     }
                 }
+
+
+                // if ($fieldType === 'text') {
+                //     $currentValueId = $valueAr;
+                //     $maxDepth = 10; // لتجنب الحلقات اللامتناهية
+                //     $depth = 0;
+
+                //     while (is_numeric($currentValueId) && $depth < $maxDepth) {
+                //         $realValue = \App\Models\CategoryFieldValue::find($currentValueId);
+
+                //         if (!$realValue || $realValue->category_field_id != $fieldValue->category_field_id) {
+                //             break; // خروج إذا القيمة غير موجودة أو الحقل مختلف
+                //         }
+
+                //         $valueAr = $realValue->value_ar ?? $valueAr;
+                //         $valueEn = $realValue->value_en ?? $valueEn;
+
+                //         if (!is_numeric($valueAr)) {
+                //             break; // وجدنا النص الحقيقي
+                //         }
+
+                //         $currentValueId = $valueAr; // نكمل البحث
+                //         $depth++;
+                //     }
+                // }
 
                 return [
                     'field_id' => $fieldValue->category_field_id,
@@ -1319,7 +1411,7 @@ class AdController extends Controller
                         'ar' => $field->field_ar ?? 'غير معروف',
                         'en' => $field->field_en ?? 'Unknown',
                     ],
-                    'field_value_id' => $fieldValue->category_field_value_id,
+                    'field_value_id' => $fieldValueId, // ✅ هنا التعديل المهم
                     'field_value' => [
                         'ar' => $valueAr,
                         'en' => $valueEn,
