@@ -28,8 +28,7 @@ class AdController extends Controller
         return view('pages.ads.ads-management', compact('ads'));
     }
 
- 
-public function updateStatus(Request $request, $id)
+  public function updateStatus(Request $request, $id)
 {
     $request->validate([
         'status' => 'required|in:pending,approved,rejected',
@@ -40,8 +39,8 @@ public function updateStatus(Request $request, $id)
     $ad->status = $request->status;
     $ad->save();
 
-    $countryName = $ad->country ? $ad->country->name : 'بدون دولة';
-    $categoryName = $ad->category ? $ad->category->name : 'بدون فئة';
+    $countryName = $ad->country ? $ad->country->name_ar ?? $ad->country->name_en : 'بدون دولة / No Country';
+    $categoryName = $ad->category ? $ad->category->name_ar ?? $ad->category->name_en : 'بدون فئة / No Category';
     $status = $request->status;
 
     $messages = [
@@ -87,6 +86,7 @@ public function updateStatus(Request $request, $id)
 
     return redirect()->back()->with('success', 'تم تحديث حالة الإعلان بنجاح');
 }
+
 
 
 

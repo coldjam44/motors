@@ -675,8 +675,7 @@ class AdController extends Controller
 
     public function indexadsusers(Request $request)
     {
-        // $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user'])
-        //     ->withCount('views');
+
         $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user'])
             ->withCount('views')
             ->orderBy('created_at', 'desc');
@@ -709,26 +708,31 @@ class AdController extends Controller
 
 
         // ✅ تطبيق الفلاتر على الاستعلام
-     foreach ($filterMap as $field => $operator) {
-    if ($request->has($field)) {
-        $column = str_replace(['min_', 'max_'], '', $field);
-        $value = $request->$field;
+        foreach ($filterMap as $field => $operator) {
+            if ($request->has($field)) {
+                $column = str_replace(['min_', 'max_'], '', $field);
+                $value = $request->$field;
 
-        $query->where(function ($q) use ($column, $operator, $value) {
-            $q->where($column, $operator, $value)
-              ->orWhereNull($column);
-        });
-    }
+                // $query->where(function ($q) use ($column, $operator, $value) {
+                //     $q->where($column, $operator, $value)
+                //         ->orWhereNull($column);
+                // });
+
+                $query->where(function ($q) use ($column, $operator, $value) {
+                    $q->where($column, $operator, $value);
+
+                    // فقط أضف orWhereNull إذا الحقل ليس kilometer
+                    if (!in_array($column, ['kilometer'])) {
+                        $q->orWhereNull($column);
+                    }
+                });
+            }
+        }
+        if ($request->has('car_model')) {
+    $query->where('car_model', $request->car_model);
 }
 
 
-
-        // foreach ($filterMap as $field => $operator) {
-        //     if ($request->has($field)) {
-        //         $column = str_replace(['min_', 'max_'], '', $field);
-        //         $query->where($column, $operator, $request->$field);
-        //     }
-        // }
 
         // ✅ فلترة حسب الحقول المخصصة
         if ($request->has('fields')) {
@@ -742,22 +746,15 @@ class AdController extends Controller
 
                 $matchedValueIds = $this->getRealFieldValueIds($valueId, $fieldId);
 
-               $query->where(function ($q) use ($fieldId, $matchedValueIds) {
-    $q->whereHas('fieldValues', function ($sub) use ($fieldId, $matchedValueIds) {
-        $sub->where('category_field_id', $fieldId)
-            ->whereIn('category_field_value_id', $matchedValueIds);
-    })
-    ->orWhereDoesntHave('fieldValues', function ($sub) use ($fieldId) {
-        $sub->where('category_field_id', $fieldId);
-    });
-});
-
-
-
-                // $query->whereHas('fieldValues', function ($q) use ($fieldId, $matchedValueIds) {
-                //     $q->where('category_field_id', $fieldId)
-                //         ->whereIn('category_field_value_id', $matchedValueIds);
-                // });
+                $query->where(function ($q) use ($fieldId, $matchedValueIds) {
+                    $q->whereHas('fieldValues', function ($sub) use ($fieldId, $matchedValueIds) {
+                        $sub->where('category_field_id', $fieldId)
+                            ->whereIn('category_field_value_id', $matchedValueIds);
+                    })
+                        ->orWhereDoesntHave('fieldValues', function ($sub) use ($fieldId) {
+                            $sub->where('category_field_id', $fieldId);
+                        });
+                });
             }
         }
 
@@ -842,6 +839,9 @@ class AdController extends Controller
                 'sub_images' => $subImages,
                 'details' => $fieldValues,
                 'view_count' => $ad->views_count,
+                'car_model_id' => $ad->car_model ?? null,
+                'car_model_value_ar' => $ad->carModel?->value_ar ?? null,
+                'car_model_value_en' => $ad->carModel?->value_en ?? null,
             ];
         };
 
@@ -1228,95 +1228,108 @@ class AdController extends Controller
         return response()->json(['ads' => $ads]);
     }
 
+ public function updateStatus(Request $request, $id)
+{
+    $request->validate([
+        'status' => 'required|in:pending,approved,rejected',
+        'lang' => 'sometimes|in:ar,en',
+    ]);
 
-    public function updateStatus(Request $request, $id)
-    {
-        $request->validate([
-            'status' => 'required|in:pending,approved,rejected',
-            'lang' => 'sometimes|in:ar,en',
-        ]);
+    $lang = $request->input('lang', 'ar'); // افتراضياً عربي
 
-        $lang = $request->input('lang', 'ar'); // افتراضياً عربي
+    // جلب الإعلان فقط بدون العلاقات
+    $ad = Ad::findOrFail($id);
 
-        // جلب الإعلان فقط بدون العلاقات
-        $ad = Ad::findOrFail($id);
+    $status = $request->status;
+    $ad->status = $status;
 
-        $status = $request->status;
-        $ad->status = $status;
+    if ($status === 'approved') {
+        $ad->accepted_at = now(); // تعيين وقت القبول
+    } else {
+        $ad->accepted_at = null; // مسح وقت القبول لو لم يكن approved
+    }
 
-        if ($status === 'approved') {
-            $ad->accepted_at = now(); // تعيين وقت القبول
-        } else {
-            $ad->accepted_at = null; // مسح وقت القبول لو لم يكن approved
-        }
+    $saveResult = $ad->save();
 
-        $ad->save();
+    // جلب أسماء الدولة بالعربية والإنجليزية مباشرة من الجدول باستخدام id الدولة في الإعلان
+    $countryNameAr = DB::table('countries')->where('id', $ad->country_id)->value('name_ar');
+    $countryNameEn = DB::table('countries')->where('id', $ad->country_id)->value('name_en');
+    $countryNameAr = $countryNameAr ?? 'بدون دولة';
+    $countryNameEn = $countryNameEn ?? 'No Country';
 
-        // جلب اسم الدولة مباشرة من الجدول باستخدام id الدولة في الإعلان
-        $countryName = DB::table('countries')
-            ->where('id', $ad->country_id)
-            ->value('name_' . $lang);
-        $countryName = $countryName ?? ($lang === 'ar' ? 'بدون دولة' : 'No Country');
+    // جلب أسماء الفئة بالعربية والإنجليزية مباشرة من الجدول باستخدام id الفئة في الإعلان
+    $categoryNameAr = DB::table('categories')->where('id', $ad->category_id)->value('name_ar');
+    $categoryNameEn = DB::table('categories')->where('id', $ad->category_id)->value('name_en');
+    $categoryNameAr = $categoryNameAr ?? 'بدون فئة';
+    $categoryNameEn = $categoryNameEn ?? 'No Category';
 
-        // جلب اسم الفئة مباشرة من الجدول باستخدام id الفئة في الإعلان
-        $categoryName = DB::table('categories')
-            ->where('id', $ad->category_id)
-            ->value('name_' . $lang);
-        $categoryName = $categoryName ?? ($lang === 'ar' ? 'بدون فئة' : 'No Category');
+    // لاستخدام في الرسائل حسب اللغة المطلوبة
+    $categoryName = ($lang === 'ar') ? $categoryNameAr : $categoryNameEn;
+    $countryName = ($lang === 'ar') ? $countryNameAr : $countryNameEn;
 
-        $messages = [
-            'approved' => [
-                'ar' => "إعلانك في $categoryName - $countryName تم قبوله!",
-                'en' => "Your ad in $categoryName - $countryName has been approved!",
-            ],
-            'rejected' => [
-                'ar' => "إعلانك في $categoryName - $countryName تم رفضه!",
-                'en' => "Your ad in $categoryName - $countryName has been rejected!",
-            ],
-            'pending' => [
-                'ar' => "إعلانك في $categoryName - $countryName قيد المراجعة!",
-                'en' => "Your ad in $categoryName - $countryName is under review!",
-            ],
-        ];
+    $messages = [
+        'approved' => [
+            'ar' => "إعلانك في $categoryNameAr - $countryNameAr تم قبوله!",
+            'en' => "Your ad in $categoryNameEn - $countryNameEn has been approved!",
+        ],
+        'rejected' => [
+            'ar' => "إعلانك في $categoryNameAr - $countryNameAr تم رفضه!",
+            'en' => "Your ad in $categoryNameEn - $countryNameEn has been rejected!",
+        ],
+        'pending' => [
+            'ar' => "إعلانك في $categoryNameAr - $countryNameAr قيد المراجعة!",
+            'en' => "Your ad in $categoryNameEn - $countryNameEn is under review!",
+        ],
+    ];
 
-        // إنشاء إشعار لصاحب الإعلان
-        Notification::create([
-            'user_id' => $ad->user_id,
-            'ad_id' => $ad->id,
-            'type' => 'ad_status',
-            'message_ar' => $messages[$status]['ar'],
-            'message_en' => $messages[$status]['en'],
-            'is_read' => false,
-        ]);
+    // إنشاء إشعار لصاحب الإعلان
+    $notificationAdStatus = Notification::create([
+        'user_id' => $ad->user_id,
+        'ad_id' => $ad->id,
+        'type' => 'ad_status',
+        'message_ar' => $messages[$status]['ar'],
+        'message_en' => $messages[$status]['en'],
+        'is_read' => false,
+    ]);
 
-        // إذا الإعلان تم قبوله، إرسال إشعارات للمتابعين
-        if ($status === 'approved') {
-            $followersIds = DB::table('followers')
-                ->where('following_id', $ad->user_id)
-                ->pluck('follower_id')
-                ->toArray();
+    $followersNotificationsCount = 0;
+    $followersIds = [];
+//\Log::info('Ad ID:', ['id' => $ad->id]);
 
-            if (!empty($followersIds)) {
-                $now = now();
-                $notifications = array_map(function ($followerId) use ($ad, $categoryName, $countryName, $now) {
-                    return [
-                        'user_id' => $followerId,
-                        'ad_id' => $ad->id,
-                        'type' => 'followed_user_ad_approved',
-                        'message_ar' => "المستخدم الذي تتابعه نشر إعلانًا جديدًا في $categoryName - $countryName",
-                        'message_en' => "A user you follow has posted a new ad in $categoryName - $countryName",
-                        'is_read' => false,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }, $followersIds);
+    // إذا الإعلان تم قبوله، إرسال إشعارات للمتابعين
+    if ($status === 'approved') {
+        $followersIds = DB::table('followers')
+            ->where('following_id', $ad->user_id)
+            ->pluck('follower_id')
+            ->toArray();
 
-                Notification::insert($notifications);
+        if (!empty($followersIds)) {
+            $now = now();
+            $notifications = array_map(function ($followerId) use ($ad, $categoryNameAr, $categoryNameEn, $countryNameAr, $countryNameEn, $now) {
+                return [
+                    'user_id' => $followerId,
+                    'ad_id' => $ad->id,
+                    'type' => 'followed_user_ad_approved',
+                    'message_ar' => "المستخدم الذي تتابعه نشر إعلانًا جديدًا في $categoryNameAr - $countryNameAr",
+                    'message_en' => "A user you follow has posted a new ad in $categoryNameEn - $countryNameEn",
+                    'is_read' => false,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }, $followersIds);
+
+            $inserted = Notification::insert($notifications);
+            if ($inserted) {
+                $followersNotificationsCount = count($notifications);
             }
         }
-
-        return response()->json(['message' => 'تم تحديث حالة الإعلان بنجاح.']);
     }
+
+    return response()->json([
+        'message' => 'تم تحديث حالة الإعلان بنجاح.',
+    ]);
+}
+
 
     public function indexbyadsid(Request $request)
     {
