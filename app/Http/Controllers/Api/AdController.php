@@ -1245,16 +1245,16 @@ class AdController extends Controller
         $ad->status = $status;
 
 
-            if ($status === 'approved') {
-    $ad->accepted_at = now();
-    $ad->rejection_reason = null; // لما يُوافق، امسح سبب الرفض
-} elseif ($status === 'rejected') {
-    $ad->accepted_at = null;
-    $ad->rejection_reason = $request->input('rejection_reason', null); // خزن سبب الرفض
-} else {
-    $ad->accepted_at = null;
-    $ad->rejection_reason = null;
-}
+        if ($status === 'approved') {
+            $ad->accepted_at = now();
+            $ad->rejection_reason = null; // لما يُوافق، امسح سبب الرفض
+        } elseif ($status === 'rejected') {
+            $ad->accepted_at = null;
+            $ad->rejection_reason = $request->input('rejection_reason', null); // خزن سبب الرفض
+        } else {
+            $ad->accepted_at = null;
+            $ad->rejection_reason = null;
+        }
 
 
 
@@ -1288,8 +1288,12 @@ class AdController extends Controller
                 'en' => "Your ad in $categoryNameEn - $countryNameEn has been approved!",
             ],
             'rejected' => [
-                'ar' => "إعلانك في $categoryNameAr - $countryNameAr تم رفضه!",
-                'en' => "Your ad in $categoryNameEn - $countryNameEn has been rejected!",
+                'ar' => $ad->rejection_reason
+                    ? "إعلانك في $categoryNameAr - $countryNameAr تم رفضه بسبب: " . $ad->rejection_reason
+                    : "إعلانك في $categoryNameAr - $countryNameAr تم رفضه!",
+                'en' => $ad->rejection_reason
+                    ? "Your ad in $categoryNameEn - $countryNameEn has been rejected due to: " . $ad->rejection_reason
+                    : "Your ad in $categoryNameEn - $countryNameEn has been rejected!",
             ],
             'pending' => [
                 'ar' => "إعلانك في $categoryNameAr - $countryNameAr قيد المراجعة!",
