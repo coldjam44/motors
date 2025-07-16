@@ -94,4 +94,9 @@ class Ad extends Model
     {
         return $this->hasMany(AdFeature::class, 'car_ad_id')->with('value');
     }
+public function reel()
+{
+    return $this->hasOne(Reel::class, 'reels_ad_id');
+}
+
 }

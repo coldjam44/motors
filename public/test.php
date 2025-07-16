@@ -1,79 +1,38 @@
 <?php
-$servername = "localhost";
-$username = "motorsss";
-$password = "4JJnTEgH3Qppl0qQojBY";
-$dbname = "motorsss";
+echo '<style>body { background-color: black; color: white; font-family: monospace; }</style>';
 
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+$ffmpegPath = '/home/azsystems-motors/htdocs/motors.azsystems.tech/public/ffmpeg-7.0.2-amd64-static/ffmpeg';
+$dir = 'reels';
+$items = scandir($dir);
 
-// Get tables
-$tables = [];
-$sql = "SHOW TABLES";
-$result = $conn->query($sql);
-if ($result->num_rows > 0) {
-    while($row = $result->fetch_array()) {
-        $tables[] = $row[0];
+// Filter video files (MP4 only)
+$videos = array_filter($items, function($item) use ($dir) {
+    return !in_array($item, ['.', '..']) && is_file("$dir/$item") && pathinfo($item, PATHINFO_EXTENSION) === 'mp4';
+});
+
+$videos = array_values($videos);
+
+if (!empty($videos)) {
+    $firstVideo = $videos[0];
+    $firstVideoPath = realpath("$dir/" . $firstVideo);
+    echo "First video path: $firstVideoPath<br><br>";
+
+    // Output thumbnail file path
+    $thumbnailPath = "$dir/thumbnail.jpg";
+
+    // Build ffmpeg command to extract 1 frame at 1 second
+    $cmd = escapeshellcmd($ffmpegPath) . " -ss 00:00:03 -i " . escapeshellarg($firstVideoPath) . " -frames:v 1 -q:v 2 " . escapeshellarg($thumbnailPath) . " 2>&1";
+
+    exec($cmd, $output, $returnVar);
+
+    if ($returnVar === 0 && file_exists($thumbnailPath)) {
+        echo "Thumbnail created successfully:<br>";
+        echo "<img src='$thumbnailPath' style='max-width:300px; border:1px solid #fff;'><br>";
+    } else {
+        echo "Failed to create thumbnail.<br>";
+        echo "<pre>" . implode("\n", $output) . "</pre>";
     }
+} else {
+    echo "No video files found in '$dir'.";
 }
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Database Tables</title>
-    <!-- Bootstrap CSS CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="p-3">
-    <h2>Database Tables in <code><?php echo htmlspecialchars($dbname); ?></code></h2>
-    <div class="accordion" id="tablesAccordion">
-        <?php foreach($tables as $i => $table): ?>
-        <div class="accordion-item">
-            <h2 class="accordion-header" id="heading<?php echo $i; ?>">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?php echo $i; ?>" aria-expanded="false" aria-controls="collapse<?php echo $i; ?>">
-                    <?php echo htmlspecialchars($table); ?>
-                </button>
-            </h2>
-            <div id="collapse<?php echo $i; ?>" class="accordion-collapse collapse" aria-labelledby="heading<?php echo $i; ?>" data-bs-parent="#tablesAccordion">
-                <div class="accordion-body">
-                    <?php
-                    // Get rows for this table
-                    $sql2 = "SELECT * FROM `$table` LIMIT 10";
-                    $res2 = $conn->query($sql2);
-                    if ($res2 && $res2->num_rows > 0) {
-                        echo "<table class='table table-bordered table-sm'><thead><tr>";
-                        // Table headers
-                        while ($fieldinfo = $res2->fetch_field()) {
-                            echo "<th>" . htmlspecialchars($fieldinfo->name) . "</th>";
-                        }
-                        echo "</tr></thead><tbody>";
-                        // Table rows
-                        while($row2 = $res2->fetch_assoc()) {
-                            echo "<tr>";
-                            foreach($row2 as $cell) {
-                                echo "<td>" . htmlspecialchars($cell) . "</td>";
-                            }
-                            echo "</tr>";
-                        }
-                        echo "</tbody></table>";
-                    } else {
-                        echo "<em>No rows found or table is empty.</em>";
-                    }
-                    ?>
-                </div>
-            </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-    <!-- Bootstrap JS CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-<?php
-$conn->close();
 ?>

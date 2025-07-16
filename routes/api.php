@@ -16,6 +16,8 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\Api\CarModelController;
 use App\Http\Controllers\VisitorLogController; 
+use App\Http\Controllers\ReelController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -58,7 +60,9 @@ Route::middleware('auth:api')->group(function () {
 Route::middleware('auth:api')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'getUserNotifications']);
     Route::post('/notifications/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/test', [NotificationController::class, 'testNotification']);
 });
+
 
 
 
@@ -183,3 +187,6 @@ Route::post('/add-field', [CategoryController::class, 'addField']);
 Route::post('/track-visitor', [VisitorLogController::class, 'track']); 
 Route::get('/track-visitor-statistics', [VisitorLogController::class, 'statistics']);
 Route::post('/track-exit', [VisitorLogController::class, 'trackExit']);
+
+Route::middleware('auth:api')->post('reels/{reel}/reaction', [ReelController::class, 'toggleLike']);
+Route::get('/reels', [ReelController::class, 'getAllReels']);

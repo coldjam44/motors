@@ -25,6 +25,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Models\AdFeature;
 use Carbon\Carbon;
+use App\Models\ReelLikesLog;
+use App\Models\User;
+ 
 
 class AdController extends Controller
 {
@@ -70,10 +73,68 @@ class AdController extends Controller
             'car_model' => 'nullable|string|max:255',
             'fields.*.category_field_id' => 'required|exists:category_fields,id',
             'fields.*.category_field_value_id' => 'required',
+            'reel_video' => 'nullable|file|mimetypes:video/mp4,video/avi,video/mov,video/quicktime|max:51200',
+            'reel_thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $reelVideoUrl = null;
+
+        if ($request->hasFile('reel_video')) {
+            $reelVideo = $request->file('reel_video');
+            $reelVideoName = time() . '_' . $reelVideo->getClientOriginalName();
+
+            $reelsDir = public_path('reels');
+
+            // إنشاء مجلد reels لو مش موجود
+            if (!file_exists($reelsDir)) {
+                mkdir($reelsDir, 0755, true);
+            }
+
+            // نقل الملف للمجلد
+            $reelVideo->move($reelsDir, $reelVideoName);
+            $reelVideoUrl = 'reels/' . $reelVideoName;
+
+            $inputVideo = $reelsDir . DIRECTORY_SEPARATOR . $reelVideoName;
+            $thumbnailPath = $reelsDir . DIRECTORY_SEPARATOR . pathinfo($reelVideoName, PATHINFO_FILENAME) . '.jpg';
+
+            $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg');
+
+            $cmd = escapeshellcmd($ffmpegPath)
+                . ' -ss 00:00:01 -i ' . escapeshellarg($inputVideo)
+                . ' -frames:v 1 -q:v 2 ' . escapeshellarg($thumbnailPath)
+                . ' 2>&1';
+
+            exec($cmd, $output, $returnVar);
+
+            if ($returnVar === 0 && file_exists($thumbnailPath)) {
+                echo "Thumbnail created successfully: " . $reelVideoUrl . " → "
+                    . pathinfo($reelVideoName, PATHINFO_FILENAME) . '.jpg';
+                $thumbnailUrl = 'reels/' . pathinfo($reelVideoName, PATHINFO_FILENAME) . '.jpg';
+            } else {
+                $thumbnailUrl = null;
+                echo "Failed to create thumbnail.";
+                echo "<pre>" . implode("\n", $output) . "</pre>";
+            }
+        }
+
+        $reelThumbnailUrl = null;
+
+        if ($request->hasFile('reel_thumbnail')) {
+            $thumbnail = $request->file('reel_thumbnail');
+            $thumbnailName = 'thumb_' . time() . '_' . $thumbnail->getClientOriginalName();
+            $thumbnailPath = public_path('reels/' . $thumbnailName);
+
+            // تأكد المجلد موجود
+            if (!file_exists(public_path('reels'))) {
+                mkdir(public_path('reels'), 0755, true);
+            }
+
+            $thumbnail->move(public_path('reels'), $thumbnailName);
+            $reelThumbnailUrl = 'reels/' . $thumbnailName;
         }
 
 
@@ -141,6 +202,17 @@ class AdController extends Controller
             'status' => 'pending',
             'main_image' => 'ads/' . $mainImageName,
         ]);
+        $reel = null;
+        if ($reelVideoUrl) {
+            $reel = \App\Models\Reel::create([
+                'reels_ad_id' => $ad->id,
+                'reels_video_url' => $reelVideoUrl,
+                'reels_like_count' => 0,
+                'reels_thumbnail_url' => $thumbnailUrl ?? null, // لو ضفت thumbnail لاحقًا
+            ]);
+        }
+
+
 
         // إنشاء إشعار للمستخدم بأن الإعلان قيد المراجعة
         Notification::create([
@@ -271,8 +343,13 @@ class AdController extends Controller
             ]);
         }
 
+        return response()->json([
+            'message' => 'Ad created successfully',
+            'ad' => $ad,
+            'reel' => $reel
+        ], 201);
 
-        return response()->json(['message' => 'Ad created successfully', 'ad' => $ad], 201);
+        // return response()->json(['message' => 'Ad created successfully', 'ad' => $ad], 201);
     }
 
 
@@ -300,7 +377,9 @@ class AdController extends Controller
 
         $ad = Ad::where('id', $id)->where('user_id', $user->id)->first();
         if (!$ad) {
-            return response()->json(['message' => 'Ad not found'], 404);
+            return response()->json([
+                'message' => 'الإعلان غير موجود أو لا يخص هذا المستخدم. | Ad not found or does not belong to the authenticated user.'
+            ], 404);
         }
 
         $validator = Validator::make($request->all(), [
@@ -319,6 +398,8 @@ class AdController extends Controller
             'fields' => 'nullable|array',
             'fields.*.category_field_id' => 'required_with:fields|exists:category_fields,id',
             'fields.*.category_field_value_id' => 'required',
+            'reel_video' => 'nullable|mimes:mp4,mov,avi|max:204800',
+
         ]);
 
         if ($validator->fails()) {
@@ -391,6 +472,53 @@ class AdController extends Controller
                 ]);
             }
         }
+
+        // === تحديث فيديو الريلز ===
+        $newReel = null;
+        if ($request->hasFile('reel_video')) {
+            $reelVideo = $request->file('reel_video');
+            $videoName = time() . '_' . $reelVideo->getClientOriginalName();
+            $videoPath = public_path('reels/' . $videoName);
+            $reelVideo->move(public_path('reels'), $videoName);
+
+            // حذف السجل القديم إن وجد
+            $existingReel = DB::table('reels')->where('reels_ad_id', $ad->id)->first();
+            if ($existingReel) {
+                if ($existingReel->reels_video_url && file_exists(public_path($existingReel->reels_video_url))) {
+                    @unlink(public_path($existingReel->reels_video_url));
+                }
+                if ($existingReel->reels_thumbnail_url && file_exists(public_path($existingReel->reels_thumbnail_url))) {
+                    @unlink(public_path($existingReel->reels_thumbnail_url));
+                }
+
+                DB::table('reels')->where('reels_ad_id', $ad->id)->delete();
+            }
+
+            // توليد صورة الـ thumbnail من الفيديو باستخدام ffmpeg
+            $thumbnailName = pathinfo($videoName, PATHINFO_FILENAME) . '.jpg';
+            $thumbnailPath = public_path('reels/' . $thumbnailName);
+            $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg'); // تأكد المسار صحيح
+            $command = "$ffmpegPath -i " . escapeshellarg($videoPath) . " -ss 00:00:01 -vframes 1 " . escapeshellarg($thumbnailPath);
+            shell_exec($command);
+
+            $likeCount = $existingReel->reels_like_count ?? 0;
+
+            // إدخال سجل جديد للريلز مع بيانات الفيديو والصورة واللايكات
+            DB::table('reels')->insert([
+                'reels_ad_id' => $ad->id,
+                'reels_video_url' => 'reels/' . $videoName,
+                'reels_thumbnail_url' => 'reels/' . $thumbnailName,
+                'reels_like_count' => $likeCount,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // جلب السجل الجديد للريلز لإرجاعه في الرد
+            $newReel = DB::table('reels')->where('reels_ad_id', $ad->id)->first();
+        }
+
+
+
 
         // إذا كانت car_options موجودة في الطلب وليست فارغة
         if ($request->has('car_options') && !empty($request->car_options)) {
@@ -487,8 +615,12 @@ class AdController extends Controller
             ]);
         }
 
-
-        return response()->json(['message' => 'Ad updated successfully', 'ad' => $ad], 200);
+        $responseData = [
+            'message' => 'Ad updated successfully',
+            'ad' => $ad,
+            'reel' => $newReel ?: null,
+        ];
+        return response()->json($responseData, 200);
     }
 
     public function destroyadmin($id)
@@ -637,7 +769,7 @@ class AdController extends Controller
 
         // حذف الحقول المرتبطة
         AdFieldValue::where('ad_id', $ad->id)->delete();
-
+    Reel::where('reels_ad_id', $ad->id)->delete();
         // حذف الإعلان
         $ad->delete();
 
@@ -1352,7 +1484,8 @@ class AdController extends Controller
 
     public function indexbyadsid(Request $request)
     {
-        $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user', 'adViews', 'features.value.field']);
+        // $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user', 'adViews', 'features.value.field']);
+        $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user', 'adViews', 'features.value.field', 'reel']);
 
         $query->leftJoin('car_models', 'ads.car_model', '=', 'car_models.id')
             ->select('ads.*', 'car_models.id as car_model_id', 'car_models.value_ar as car_model_ar', 'car_models.value_en as car_model_en');
@@ -1364,6 +1497,34 @@ class AdController extends Controller
         $ads = $query->get();
 
         $ads->transform(function ($ad) {
+            $reelVideoUrl = $ad->reel && $ad->reel->reels_video_url ? url($ad->reel->reels_video_url) : null;
+            $reelThumbnailUrl = $ad->reel && $ad->reel->reels_thumbnail_url ? url($ad->reel->reels_thumbnail_url) : null;
+            $reelLikesCount = 0;
+            $likedUsers = [];
+
+            if ($ad->reel) {
+                $reelLikesCount = ReelLikesLog::where('reel_id', $ad->reel->reels_id)
+                    ->where('reaction', 'like')
+                    ->count();
+
+                $likedUserIds = ReelLikesLog::where('reel_id', $ad->reel->reels_id)
+                    ->where('reaction', 'like')
+                    ->pluck('user_id')
+                    ->toArray();
+
+                $likedUsers = Userauth::whereIn('id', $likedUserIds)
+                    ->get(['id', 'first_name', 'last_name', 'profile_image'])
+                    ->map(function ($user) {
+                        return [
+                            'id' => $user->id,
+                            'first_name' => $user->first_name,
+                            'last_name' => $user->last_name,
+                            'profile_image' => $user->profile_image ? url('profile_images/' . $user->profile_image) : null,
+                        ];
+                    });
+            }
+
+
             $ad->main_image = $ad->main_image ? url($ad->main_image) : null;
 
             $latestAd = Ad::where('user_id', $ad->user_id)->latest('created_at')->first();
@@ -1412,30 +1573,6 @@ class AdController extends Controller
                     }
                 }
 
-
-                // if ($fieldType === 'text') {
-                //     $currentValueId = $valueAr;
-                //     $maxDepth = 10; // لتجنب الحلقات اللامتناهية
-                //     $depth = 0;
-
-                //     while (is_numeric($currentValueId) && $depth < $maxDepth) {
-                //         $realValue = \App\Models\CategoryFieldValue::find($currentValueId);
-
-                //         if (!$realValue || $realValue->category_field_id != $fieldValue->category_field_id) {
-                //             break; // خروج إذا القيمة غير موجودة أو الحقل مختلف
-                //         }
-
-                //         $valueAr = $realValue->value_ar ?? $valueAr;
-                //         $valueEn = $realValue->value_en ?? $valueEn;
-
-                //         if (!is_numeric($valueAr)) {
-                //             break; // وجدنا النص الحقيقي
-                //         }
-
-                //         $currentValueId = $valueAr; // نكمل البحث
-                //         $depth++;
-                //     }
-                // }
 
                 return [
                     'field_id' => $fieldValue->category_field_id,
@@ -1491,6 +1628,10 @@ class AdController extends Controller
                 'car_model_ar' => $ad->car_model_ar,
                 'car_model_en' => $ad->car_model_en,
                 'accepted_at' => $ad->accepted_at ? \Carbon\Carbon::parse($ad->accepted_at)->toISOString() : null,
+                'reel_video_url' => $reelVideoUrl,
+                'reel_thumbnail_url' => $reelThumbnailUrl,
+                'reel_likes_count' => $reelLikesCount,
+                'liked_users' => $likedUsers,
 
 
             ];
