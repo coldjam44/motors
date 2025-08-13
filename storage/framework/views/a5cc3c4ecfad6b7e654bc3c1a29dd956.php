@@ -144,6 +144,7 @@
                   <button class="btn btn-primary d-grid w-100" type="submit">Sign in</button>
                 </div>
               </form>
+              <a href="<?php echo e(url('auth/google')); ?>">Login Using Google </a>
             </div>
           </div>
           <!-- /Register -->

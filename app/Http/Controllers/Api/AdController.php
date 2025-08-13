@@ -15,7 +15,7 @@ use App\Models\AdImage;
 use App\Models\AdView;
 use App\Models\Notification;
 use App\Models\CategoryField;
-
+use Illuminate\Support\Facades\Storage;
 use App\Models\Favorite;
 use App\Models\AdFieldValue;
 use Illuminate\Http\Request;
@@ -27,11 +27,10 @@ use App\Models\AdFeature;
 use Carbon\Carbon;
 use App\Models\ReelLikesLog;
 use App\Models\User;
- 
+
 
 class AdController extends Controller
 {
-
 
 
     public function store(Request $request)
@@ -73,7 +72,7 @@ class AdController extends Controller
             'car_model' => 'nullable|string|max:255',
             'fields.*.category_field_id' => 'required|exists:category_fields,id',
             'fields.*.category_field_value_id' => 'required',
-            'reel_video' => 'nullable|file|mimetypes:video/mp4,video/avi,video/mov,video/quicktime|max:51200',
+            //'reel_video' => 'nullable|file|mimetypes:video/mp4,video/avi,video/mov,video/quicktime|max:51200',
             'reel_thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
@@ -82,44 +81,110 @@ class AdController extends Controller
         }
 
         $reelVideoUrl = null;
-
         if ($request->hasFile('reel_video')) {
-            $reelVideo = $request->file('reel_video');
-            $reelVideoName = time() . '_' . $reelVideo->getClientOriginalName();
+    $reelVideo = $request->file('reel_video');
 
-            $reelsDir = public_path('reels');
+    // اسم فريد مع timestamp ورقم عشوائي
+    $timestamp = time();
+    $random = rand(1000, 9999);
+    $originalName = pathinfo($reelVideo->getClientOriginalName(), PATHINFO_FILENAME);
+    $finalBaseName = $originalName . '_' . $timestamp . '_' . $random;
 
-            // إنشاء مجلد reels لو مش موجود
-            if (!file_exists($reelsDir)) {
-                mkdir($reelsDir, 0755, true);
-            }
+    $reelsDir = public_path('reels');
+    if (!file_exists($reelsDir)) {
+        mkdir($reelsDir, 0755, true);
+    }
 
-            // نقل الملف للمجلد
-            $reelVideo->move($reelsDir, $reelVideoName);
-            $reelVideoUrl = 'reels/' . $reelVideoName;
+    // مسارات الفيديو
+    $originalPath = $reelsDir . DIRECTORY_SEPARATOR . $finalBaseName . '_original.mp4';
+    $tempPath = $reelsDir . DIRECTORY_SEPARATOR . $finalBaseName . '_temp.mp4';
+    $compressedName = $finalBaseName . '_compressed.mp4';
+    $compressedPath = $reelsDir . DIRECTORY_SEPARATOR . $compressedName;
 
-            $inputVideo = $reelsDir . DIRECTORY_SEPARATOR . $reelVideoName;
-            $thumbnailPath = $reelsDir . DIRECTORY_SEPARATOR . pathinfo($reelVideoName, PATHINFO_FILENAME) . '.jpg';
+    // حفظ الفيديو الأصلي
+    $reelVideo->move($reelsDir, $finalBaseName . '_original.mp4');
 
-            $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg');
+    $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg');
 
-            $cmd = escapeshellcmd($ffmpegPath)
-                . ' -ss 00:00:01 -i ' . escapeshellarg($inputVideo)
-                . ' -frames:v 1 -q:v 2 ' . escapeshellarg($thumbnailPath)
-                . ' 2>&1';
+    // ضغط آمن: خفض الدقة إلى 75%، CRF=28 (جودة معقولة)، صوت 64k (تقليل جودة الصوت)
+    $cmd1 = escapeshellcmd($ffmpegPath) . ' -i ' . escapeshellarg($originalPath)
+        . ' -vf "scale=iw*0.75:ih*0.75" -c:v libx264 -preset fast -crf 28 -c:a aac -b:a 64k '
+        . escapeshellarg($tempPath);
+    exec($cmd1, $out1, $ret1);
 
-            exec($cmd, $output, $returnVar);
+    // تحويل لتنسيق Apple مع faststart (تسريع بدء التشغيل)
+    $cmd2 = escapeshellcmd($ffmpegPath) . ' -i ' . escapeshellarg($tempPath)
+        . ' -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 64k -ar 48000 -movflags +faststart '
+        . escapeshellarg($compressedPath);
+    exec($cmd2, $out2, $ret2);
 
-            if ($returnVar === 0 && file_exists($thumbnailPath)) {
-                echo "Thumbnail created successfully: " . $reelVideoUrl . " → "
-                    . pathinfo($reelVideoName, PATHINFO_FILENAME) . '.jpg';
-                $thumbnailUrl = 'reels/' . pathinfo($reelVideoName, PATHINFO_FILENAME) . '.jpg';
-            } else {
-                $thumbnailUrl = null;
-                echo "Failed to create thumbnail.";
-                echo "<pre>" . implode("\n", $output) . "</pre>";
-            }
-        }
+    // حذف الملفات المؤقتة
+    if (file_exists($tempPath)) unlink($tempPath);
+    if (file_exists($originalPath)) unlink($originalPath);
+
+    // إنشاء صورة مصغرة (thumbnail) من الفيديو المضغوط عند الثانية 1
+    $thumbnailName = $finalBaseName . '_thumbnail.jpg';
+    $thumbnailPath = $reelsDir . DIRECTORY_SEPARATOR . $thumbnailName;
+    $cmdThumb = escapeshellcmd($ffmpegPath)
+        . ' -ss 00:00:01 -i ' . escapeshellarg($compressedPath)
+        . ' -frames:v 1 -q:v 2 ' . escapeshellarg($thumbnailPath)
+        . ' -y'; // -y لتجاوز تأكيد الكتابة
+    exec($cmdThumb, $outThumb, $retThumb);
+
+    $reelVideoUrl = null;
+    $thumbnailUrl = null;
+
+    if ($ret2 === 0 && file_exists($compressedPath)) {
+        $reelVideoUrl = 'reels/' . $compressedName;
+    }
+
+    if ($retThumb === 0 && file_exists($thumbnailPath)) {
+        $thumbnailUrl = 'reels/' . $thumbnailName;
+    }
+}
+
+
+
+
+
+
+        // if ($request->hasFile('reel_video')) {
+        //     $reelVideo = $request->file('reel_video');
+        //     $reelVideoName = time() . '_' . $reelVideo->getClientOriginalName();
+
+        //     $reelsDir = public_path('reels');
+
+        //     // إنشاء مجلد reels لو مش موجود
+        //     if (!file_exists($reelsDir)) {
+        //         mkdir($reelsDir, 0755, true);
+        //     }
+
+        //     // نقل الملف للمجلد
+        //     $reelVideo->move($reelsDir, $reelVideoName);
+        //     $reelVideoUrl = 'reels/' . $reelVideoName;
+
+        //     $inputVideo = $reelsDir . DIRECTORY_SEPARATOR . $reelVideoName;
+        //     $thumbnailPath = $reelsDir . DIRECTORY_SEPARATOR . pathinfo($reelVideoName, PATHINFO_FILENAME) . '.jpg';
+
+        //     $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg');
+
+        //     $cmd = escapeshellcmd($ffmpegPath)
+        //         . ' -ss 00:00:01 -i ' . escapeshellarg($inputVideo)
+        //         . ' -frames:v 1 -q:v 2 ' . escapeshellarg($thumbnailPath)
+        //         . ' 2>&1';
+
+        //     exec($cmd, $output, $returnVar);
+
+        //     if ($returnVar === 0 && file_exists($thumbnailPath)) {
+        //         // echo "Thumbnail created successfully: " . $reelVideoUrl . " → "
+        //         //     . pathinfo($reelVideoName, PATHINFO_FILENAME) . '.jpg';
+        //         $thumbnailUrl = 'reels/' . pathinfo($reelVideoName, PATHINFO_FILENAME) . '.jpg';
+        //     } else {
+        //         $thumbnailUrl = null;
+        //         echo "Failed to create thumbnail.";
+        //         echo "<pre>" . implode("\n", $output) . "</pre>";
+        //     }
+        // }
 
         $reelThumbnailUrl = null;
 
@@ -354,6 +419,7 @@ class AdController extends Controller
 
 
 
+
     public function update(Request $request, $id)
     {
         $token = request()->bearerToken();
@@ -374,6 +440,12 @@ class AdController extends Controller
         if (!$user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
+
+        if (!$request->hasFile('reel_video')) {
+            $request->request->remove('reel_video');
+        }
+
+
 
         $ad = Ad::where('id', $id)->where('user_id', $user->id)->first();
         if (!$ad) {
@@ -398,7 +470,7 @@ class AdController extends Controller
             'fields' => 'nullable|array',
             'fields.*.category_field_id' => 'required_with:fields|exists:category_fields,id',
             'fields.*.category_field_value_id' => 'required',
-            'reel_video' => 'nullable|mimes:mp4,mov,avi|max:204800',
+            'reel_video' => 'sometimes|file|mimetypes:video/mp4,video/avi,video/mov,video/quicktime|max:51200',
 
         ]);
 
@@ -769,7 +841,7 @@ class AdController extends Controller
 
         // حذف الحقول المرتبطة
         AdFieldValue::where('ad_id', $ad->id)->delete();
-    Reel::where('reels_ad_id', $ad->id)->delete();
+        Reel::where('reels_ad_id', $ad->id)->delete();
         // حذف الإعلان
         $ad->delete();
 
@@ -1985,6 +2057,69 @@ class AdController extends Controller
         return response()->json([
             'success' => true,
             'data' => $adsData
+        ]);
+    }
+
+
+
+
+    public function testvidresize(Request $request)
+    {
+        if (!$request->hasFile('rvid')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No video file uploaded',
+            ], 400);
+        }
+
+        $video = $request->file('rvid');
+
+        // معلومات الفيديو الأساسية
+        $videoInfo = [
+            'original_name' => $video->getClientOriginalName(),
+            'mime_type' => $video->getMimeType(),
+            'extension' => $video->getClientOriginalExtension(),
+            'size_in_bytes' => $video->getSize(),
+            'temporary_path' => $video->getRealPath(),
+        ];
+
+        $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg');
+        $ffprobePath = public_path('../ffmpeg-7.0.2-amd64-static/ffprobe');
+
+        $ffmpegExists = file_exists($ffmpegPath);
+        $ffprobeExists = file_exists($ffprobePath);
+
+        $outputDir = storage_path('app/public/compressed');
+        if (!file_exists($outputDir)) {
+            mkdir($outputDir, 0777, true);
+        }
+
+        $filename = uniqid('compressed_') . '.mp4';
+        $outputFile = $outputDir . '/' . $filename;
+
+        $command = "$ffmpegPath -i " . escapeshellarg($video->getRealPath()) .
+            " -vcodec libx264 -crf 28 -preset fast -acodec aac -b:a 128k " .
+            escapeshellarg($outputFile) . " 2>&1";
+
+        exec($command, $outputLog, $exitCode);
+
+        $relativeUrl = Storage::disk('public')->url('compressed/' . $filename);
+        $outputUrl = url($relativeUrl);  // هذا يضمن وجود الدومين في الرابط
+
+        return response()->json([
+            'success' => true,
+            'video_info' => $videoInfo,
+            'ffmpeg_path' => $ffmpegPath,
+            'ffmpeg_exists' => $ffmpegExists,
+            'ffprobe_path' => $ffprobePath,
+            'ffprobe_exists' => $ffprobeExists,
+            'compression' => [
+                'output_file_path' => $outputFile,
+                'output_file_url' => $outputUrl,
+                'exit_code' => $exitCode,
+                'ffmpeg_command' => $command,
+                'log' => $outputLog
+            ]
         ]);
     }
 }

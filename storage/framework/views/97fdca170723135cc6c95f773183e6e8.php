@@ -68,8 +68,9 @@ id="layout-navbar">
                 </div>
               </div>
               <div class="flex-grow-1">
-                <span class="fw-medium d-block">John Doe</span>
-                <small class="text-muted">Admin</small>
+                <span class="fw-medium d-block"><?php echo e(auth()->user()->name); ?></span>
+<small class="text-muted"><?php echo e(auth()->user()->role); ?></small>
+
               </div>
             </div>
           </a>

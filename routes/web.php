@@ -10,6 +10,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CategoryFieldController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\CarModelController;
+use App\Http\Controllers\GoogleController;
 
 use Mcamara\LaravelLocalization\Facades\LaravelLocalization;
 
@@ -70,9 +71,8 @@ Route::post('/categories/{category}/fields/store-car-model', [CategoryFieldContr
       Route::post('categories/{category}/fields/ensureExists', [CategoryFieldController::class, 'ensureExists'])->name('categories.fields.ensureExists');
 
 Route::post('/categories/{categoryId}/toggle-kilometers', [CategoryController::class, 'toggleKilometers'])->name('categories.toggleKilometers');
-
-
-
 });
 
-
+Route::get('auth/google',[GoogleController::class,'googlepage']);
+Route::get('auth/google/callback',[GoogleController::class,'googlecallback']);
+Route::GET('/google/authenticate', [GoogleController::class, 'getLogindataUsingGoogleCode']);

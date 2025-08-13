@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\File;
 use App\Models\Follower;
 use Illuminate\Support\Facades\DB;
+use Google_Client;
 
 class UserauthController extends Controller
 {
@@ -466,6 +467,60 @@ class UserauthController extends Controller
         return response()->json([
             'message' => 'Total users count | العدد الكلي للمستخدمين',
             'count' => $count,
+        ]);
+    }
+
+
+
+    public function googleLogin(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string', // ده Google access token
+        ]);
+
+        // إعداد عميل Google
+        $client = new Google_Client(['client_id' => 'YOUR_GOOGLE_CLIENT_ID']);
+        $payload = $client->verifyIdToken($request->token);
+
+        if (!$payload) {
+            return response()->json(['message' => 'Invalid Google token'], 401);
+        }
+
+        $email = $payload['email'];
+        $firstName = $payload['given_name'] ?? '';
+        $lastName = $payload['family_name'] ?? '';
+        $googleId = $payload['sub'];
+        $picture = $payload['picture'] ?? null;
+
+        // هل المستخدم موجود؟
+        $user = Userauth::where('email', $email)->first();
+
+        if (!$user) {
+            // تسجيل مستخدم جديد
+            $user = Userauth::create([
+                'email' => $email,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'password' => bcrypt(Str::random(16)), // باسورد عشوائي
+                'profile_image' => $picture,
+                'google_id' => $googleId, // لو عندك عمود ليه
+            ]);
+        }
+
+        // إنشاء JWT token
+        $token = JWTAuth::fromUser($user);
+
+        return response()->json([
+            'message' => 'Google login successful',
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'email' => $user->email,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'profile_image' => $user->profile_image ? asset('profile_images/' . $user->profile_image) : $picture,
+                'created_at' => $user->created_at,
+            ],
         ]);
     }
 }

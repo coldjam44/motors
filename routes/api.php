@@ -35,7 +35,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::post('/register', [UserauthController::class, 'register']);
 
-// تسجيل الدخول وإرجاع التوكن
+// تسجيل الدخول وإرجاع التوكن 
 Route::post('/login', [UserauthController::class, 'login']);
 Route::middleware('auth:api')->post('/logout', [UserauthController::class, 'logout']);
 
@@ -182,11 +182,20 @@ Route::delete(
     [CategoryController::class, 'deleteMakeById']
 );
 Route::get('/mostRecentAds', [AdController::class, 'mostRecentAds']);
+Route::post('/testvidresize', [AdController::class, 'testvidresize']);
 Route::post('/add-field', [CategoryController::class, 'addField']);
 
 Route::post('/track-visitor', [VisitorLogController::class, 'track']); 
 Route::get('/track-visitor-statistics', [VisitorLogController::class, 'statistics']);
 Route::post('/track-exit', [VisitorLogController::class, 'trackExit']);
 
-Route::middleware('auth:api')->post('reels/{reel}/reaction', [ReelController::class, 'toggleLike']);
-Route::get('/reels', [ReelController::class, 'getAllReels']);
+
+//ReelController
+Route::get('reels', [ReelController::class, 'getAllReels']);
+Route::get('reels/{id}', [ReelController::class, 'getReelById']);
+Route::post('reels/{reelId}/increment-view', [ReelController::class, 'incrementView']);
+
+Route::middleware('auth:api')->group(function () {
+    Route::post('reels/{reel}/reaction', [ReelController::class, 'toggleLike']);  // يحتاج توثيق
+    Route::post('reels/{reelId}/increment-share', [ReelController::class, 'incrementShare']); // يحتاج توثيق
+});
