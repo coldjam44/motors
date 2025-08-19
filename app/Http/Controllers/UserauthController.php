@@ -14,57 +14,7 @@ use Google_Client;
 
 class UserauthController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    // public function register(Request $request)
-    // {
-    //     $validator = Validator::make($request->all(), [
-    //         'first_name' => 'required|string|max:255',
-    //         'last_name' => 'required|string|max:255',
-    //         'email' => 'required|email|unique:userauths,email',
-    //         'phone_number' => 'required|unique:userauths,phone_number',
-    //         'password' => 'required|min:6|confirmed',
-    //     ]);
-
-    //     if ($validator->fails()) {
-    //         return response()->json(['errors' => $validator->errors()], 422);
-    //     }
-
-    //     $user = UserAuth::create([
-    //         'first_name' => $request->first_name,
-    //         'last_name' => $request->last_name,
-    //         'email' => $request->email,
-    //         'phone_number' => $request->phone_number,
-    //         'password' => Hash::make($request->password),
-    //     ]);
-
-    //     // إنشاء توكن JWT
-    //     $token = JWTAuth::fromUser($user);
-
-    //     return response()->json([
-    //         'message' => 'User registered successfully',
-    //         'user' => $user,
-    //         'token' => $token, // إرجاع التوكن للمستخدم
-    //     ], 201);
-    // }
-
-    // public function login(Request $request)
-    // {
-    //     $credentials = $request->validate([
-    //         'email' => 'required|email',
-    //         'password' => 'required'
-    //     ]);
-
-    //     if (!$token = auth('api')->attempt($credentials)) {
-    //         return response()->json(['message' => 'Invalid credentials'], 401);
-    //     }
-
-    //     return response()->json([
-    //         'message' => 'Login successful',
-    //         'token' => $token,
-    //     ]);
-    // }
+    
 
     public function register(Request $request)
     {
@@ -119,7 +69,6 @@ class UserauthController extends Controller
             'token' => $token,
         ], 201);
     }
-
 
     public function login(Request $request)
     {
@@ -200,7 +149,6 @@ class UserauthController extends Controller
         ]);
     }
 
-
     public function logout(Request $request)
     {
         try {
@@ -212,7 +160,6 @@ class UserauthController extends Controller
             return response()->json(['message' => 'Failed to log out'], 500);
         }
     }
-
 
     public function me(Request $request)
     {
@@ -286,8 +233,6 @@ class UserauthController extends Controller
             return response()->json(['message' => 'Token is missing'], 401);
         }
     }
-
-
 
     public function update(Request $request)
     {
@@ -366,7 +311,7 @@ class UserauthController extends Controller
             $coverImage->move(public_path('cover_images'), $imageName);
             $user->cover_image = $imageName;
         }
-
+/** @var \App\Models\Userauth $user */
         $user->save();
 
         $message = $passwordChanged
@@ -388,8 +333,6 @@ class UserauthController extends Controller
             ]
         ]);
     }
-
-
 
     public function listUsers(Request $request)
     {
@@ -427,8 +370,6 @@ class UserauthController extends Controller
         ]);
     }
 
-
-
     public function blockUser(Request $request)
     {
         $request->validate([
@@ -459,7 +400,6 @@ class UserauthController extends Controller
             ],
         ]);
     }
-
     public function countUsers()
     {
         $count = Userauth::count();
@@ -469,8 +409,6 @@ class UserauthController extends Controller
             'count' => $count,
         ]);
     }
-
-
 
     public function googleLogin(Request $request)
     {

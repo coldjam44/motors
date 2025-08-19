@@ -27,12 +27,11 @@ use App\Models\AdFeature;
 use Carbon\Carbon;
 use App\Models\ReelLikesLog;
 use App\Models\User;
+use App\Models\Reel;
 
 
 class AdController extends Controller
 {
-
-
     public function store(Request $request)
     {
         // استرجاع المستخدم من التوكن
@@ -82,66 +81,81 @@ class AdController extends Controller
 
         $reelVideoUrl = null;
         if ($request->hasFile('reel_video')) {
-    $reelVideo = $request->file('reel_video');
+            $reelVideo = $request->file('reel_video');
 
-    // اسم فريد مع timestamp ورقم عشوائي
-    $timestamp = time();
-    $random = rand(1000, 9999);
-    $originalName = pathinfo($reelVideo->getClientOriginalName(), PATHINFO_FILENAME);
-    $finalBaseName = $originalName . '_' . $timestamp . '_' . $random;
+            // اسم فريد مع timestamp ورقم عشوائي
+            $timestamp = time();
+            $random = rand(1000, 9999);
+            // $originalName = pathinfo($reelVideo->getClientOriginalName(), PATHINFO_FILENAME);
+            // $finalBaseName = $originalName . '_' . $timestamp . '_' . $random;
 
-    $reelsDir = public_path('reels');
-    if (!file_exists($reelsDir)) {
-        mkdir($reelsDir, 0755, true);
-    }
+            $originalName = pathinfo($reelVideo->getClientOriginalName(), PATHINFO_FILENAME);
 
-    // مسارات الفيديو
-    $originalPath = $reelsDir . DIRECTORY_SEPARATOR . $finalBaseName . '_original.mp4';
-    $tempPath = $reelsDir . DIRECTORY_SEPARATOR . $finalBaseName . '_temp.mp4';
-    $compressedName = $finalBaseName . '_compressed.mp4';
-    $compressedPath = $reelsDir . DIRECTORY_SEPARATOR . $compressedName;
+            // تنظيف الاسم: حذف الرموز الخاصة، واستبدال المسافات والشرطات المتعددة بواحدة _
+            $cleanedName = preg_replace('/[^a-zA-Z0-9\s_-]/', '', $originalName);  // إزالة كل الرموز غير المسموح بها
+            $cleanedName = preg_replace('/[\s_-]+/', '_', $cleanedName);            // استبدال المسافات/شرطات بواحدة _
+            $cleanedName = trim($cleanedName, '_');                                 // إزالة الشرطات من البداية والنهاية
 
-    // حفظ الفيديو الأصلي
-    $reelVideo->move($reelsDir, $finalBaseName . '_original.mp4');
+            // إذا كان الاسم فارغًا بعد التنظيف (مثلاً كان اسمه رموز فقط)، نستخدم اسمًا افتراضيًا
+            if ($cleanedName === '') {
+                $cleanedName = 'video';
+            }
 
-    $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg');
+            // توليد الاسم النهائي بدون امتداد (كما تستخدمه في $finalBaseName)
+            $finalBaseName = $cleanedName . '_' . $timestamp . '_' . $random;
 
-    // ضغط آمن: خفض الدقة إلى 75%، CRF=28 (جودة معقولة)، صوت 64k (تقليل جودة الصوت)
-    $cmd1 = escapeshellcmd($ffmpegPath) . ' -i ' . escapeshellarg($originalPath)
-        . ' -vf "scale=iw*0.75:ih*0.75" -c:v libx264 -preset fast -crf 28 -c:a aac -b:a 64k '
-        . escapeshellarg($tempPath);
-    exec($cmd1, $out1, $ret1);
+            $reelsDir = public_path('reels');
+            if (!file_exists($reelsDir)) {
+                mkdir($reelsDir, 0755, true);
+            }
 
-    // تحويل لتنسيق Apple مع faststart (تسريع بدء التشغيل)
-    $cmd2 = escapeshellcmd($ffmpegPath) . ' -i ' . escapeshellarg($tempPath)
-        . ' -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 64k -ar 48000 -movflags +faststart '
-        . escapeshellarg($compressedPath);
-    exec($cmd2, $out2, $ret2);
+            // مسارات الفيديو
+            $originalPath = $reelsDir . DIRECTORY_SEPARATOR . $finalBaseName . '_original.mp4';
+            $tempPath = $reelsDir . DIRECTORY_SEPARATOR . $finalBaseName . '_temp.mp4';
+            $compressedName = $finalBaseName . '_compressed.mp4';
+            $compressedPath = $reelsDir . DIRECTORY_SEPARATOR . $compressedName;
 
-    // حذف الملفات المؤقتة
-    if (file_exists($tempPath)) unlink($tempPath);
-    if (file_exists($originalPath)) unlink($originalPath);
+            // حفظ الفيديو الأصلي
+            $reelVideo->move($reelsDir, $finalBaseName . '_original.mp4');
 
-    // إنشاء صورة مصغرة (thumbnail) من الفيديو المضغوط عند الثانية 1
-    $thumbnailName = $finalBaseName . '_thumbnail.jpg';
-    $thumbnailPath = $reelsDir . DIRECTORY_SEPARATOR . $thumbnailName;
-    $cmdThumb = escapeshellcmd($ffmpegPath)
-        . ' -ss 00:00:01 -i ' . escapeshellarg($compressedPath)
-        . ' -frames:v 1 -q:v 2 ' . escapeshellarg($thumbnailPath)
-        . ' -y'; // -y لتجاوز تأكيد الكتابة
-    exec($cmdThumb, $outThumb, $retThumb);
+            $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg');
 
-    $reelVideoUrl = null;
-    $thumbnailUrl = null;
+            // ضغط آمن: خفض الدقة إلى 75%، CRF=28 (جودة معقولة)، صوت 64k (تقليل جودة الصوت)
+            $cmd1 = escapeshellcmd($ffmpegPath) . ' -i ' . escapeshellarg($originalPath)
+                . ' -vf "scale=iw*0.75:ih*0.75" -c:v libx264 -preset fast -crf 28 -c:a aac -b:a 64k '
+                . escapeshellarg($tempPath);
+            exec($cmd1, $out1, $ret1);
 
-    if ($ret2 === 0 && file_exists($compressedPath)) {
-        $reelVideoUrl = 'reels/' . $compressedName;
-    }
+            // تحويل لتنسيق Apple مع faststart (تسريع بدء التشغيل)
+            $cmd2 = escapeshellcmd($ffmpegPath) . ' -i ' . escapeshellarg($tempPath)
+                . ' -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 64k -ar 48000 -movflags +faststart '
+                . escapeshellarg($compressedPath);
+            exec($cmd2, $out2, $ret2);
 
-    if ($retThumb === 0 && file_exists($thumbnailPath)) {
-        $thumbnailUrl = 'reels/' . $thumbnailName;
-    }
-}
+            // حذف الملفات المؤقتة
+            if (file_exists($tempPath)) unlink($tempPath);
+            if (file_exists($originalPath)) unlink($originalPath);
+
+            // إنشاء صورة مصغرة (thumbnail) من الفيديو المضغوط عند الثانية 1
+            $thumbnailName = $finalBaseName . '_thumbnail.jpg';
+            $thumbnailPath = $reelsDir . DIRECTORY_SEPARATOR . $thumbnailName;
+            $cmdThumb = escapeshellcmd($ffmpegPath)
+                . ' -ss 00:00:01 -i ' . escapeshellarg($compressedPath)
+                . ' -frames:v 1 -q:v 2 ' . escapeshellarg($thumbnailPath)
+                . ' -y'; // -y لتجاوز تأكيد الكتابة
+            exec($cmdThumb, $outThumb, $retThumb);
+
+            $reelVideoUrl = null;
+            $thumbnailUrl = null;
+
+            if ($ret2 === 0 && file_exists($compressedPath)) {
+                $reelVideoUrl = 'reels/' . $compressedName;
+            }
+
+            if ($retThumb === 0 && file_exists($thumbnailPath)) {
+                $thumbnailUrl = 'reels/' . $thumbnailName;
+            }
+        }
 
 
 
@@ -416,10 +430,6 @@ class AdController extends Controller
 
         // return response()->json(['message' => 'Ad created successfully', 'ad' => $ad], 201);
     }
-
-
-
-
     public function update(Request $request, $id)
     {
         $token = request()->bearerToken();
@@ -694,7 +704,6 @@ class AdController extends Controller
         ];
         return response()->json($responseData, 200);
     }
-
     public function destroyadmin($id)
     {
         try {
@@ -708,9 +717,9 @@ class AdController extends Controller
         }
 
         // التحقق إن المستخدم أدمن
-        if ($user->role !== 'admin') {
-            return response()->json(['message' => 'Access denied: admin only | الوصول مرفوض: الأدمن فقط'], 403);
-        }
+        // if ($user->role !== 'admin') {
+        //     return response()->json(['message' => 'Access denied: admin only | الوصول مرفوض: الأدمن فقط'], 403);
+        // }
 
         // البحث عن الإعلان
         $ad = Ad::find($id);
@@ -718,26 +727,21 @@ class AdController extends Controller
             return response()->json(['message' => 'Ad not found | الإعلان غير موجود'], 404);
         }
 
-        // حذف الصور الفرعية
-        AdImage::where('ad_id', $ad->id)->delete();
+        // // حذف الصور الفرعية
+        // AdImage::where('ad_id', $ad->id)->delete();
 
-        // حذف القيم المرتبطة بالحقول
-        AdFieldValue::where('ad_id', $ad->id)->delete();
+        // // حذف القيم المرتبطة بالحقول
+        // AdFieldValue::where('ad_id', $ad->id)->delete();
 
-        // حذف الإعلان
-        $ad->delete();
+        // // حذف الإعلان
+        // $ad->delete();
 
-        return response()->json(['message' => 'Ad deleted successfully | تم حذف الإعلان بنجاح'], 200);
+        // بدل الحذف النهائي، نجعل الإعلان inactive
+        $ad->status = 'inactive';
+        $ad->save();
+
+        return response()->json(['message' => 'Ad set to inactive successfully | تم تحويل الإعلان إلى inactive'], 200);
     }
-
-
-
-
-
-
-
-
-
     public function index()
     {
         $user = auth('api')->user();
@@ -808,8 +812,6 @@ class AdController extends Controller
 
         return response()->json(['ads' => $ads]);
     }
-
-
     public function destroy($id)
     {
         // استرجاع المستخدم من التوكن
@@ -826,30 +828,32 @@ class AdController extends Controller
             return response()->json(['message' => 'Ad not found or unauthorized'], 404);
         }
 
-        // حذف الصورة الرئيسية من السيرفر
-        if ($ad->main_image && file_exists(public_path($ad->main_image))) {
-            unlink(public_path($ad->main_image));
-        }
+        // // حذف الصورة الرئيسية من السيرفر
+        // if ($ad->main_image && file_exists(public_path($ad->main_image))) {
+        //     unlink(public_path($ad->main_image));
+        // }
 
-        // حذف الصور الفرعية من السيرفر
-        foreach ($ad->subImages as $image) {
-            if (file_exists(public_path($image->image))) {
-                unlink(public_path($image->image));
-            }
-            $image->delete();
-        }
+        // // حذف الصور الفرعية من السيرفر
+        // foreach ($ad->subImages as $image) {
+        //     if (file_exists(public_path($image->image))) {
+        //         unlink(public_path($image->image));
+        //     }
+        //     $image->delete();
+        // }
 
-        // حذف الحقول المرتبطة
-        AdFieldValue::where('ad_id', $ad->id)->delete();
-        Reel::where('reels_ad_id', $ad->id)->delete();
-        // حذف الإعلان
-        $ad->delete();
+        // // حذف الحقول المرتبطة
+        // AdFieldValue::where('ad_id', $ad->id)->delete();
+        // Reel::where('reels_ad_id', $ad->id)->delete();
 
-        return response()->json(['message' => 'Ad deleted successfully'], 200);
+        // // حذف الإعلان
+        // $ad->delete();
+
+        // بدل الحذف النهائي، نجعل الإعلان inactive
+        $ad->status = 'inactive';
+        $ad->save();
+
+        return response()->json(['message' => 'Ad set to inactive successfully'], 200);
     }
-
-
-
     function getRealFieldValueIds($targetValueId, $fieldId)
     {
         $matchedIds = [];
@@ -875,8 +879,6 @@ class AdController extends Controller
 
         return $matchedIds;
     }
-
-
     public function indexadsusers(Request $request)
     {
 
@@ -1070,9 +1072,6 @@ class AdController extends Controller
             ]);
         }
     }
-
-
-
     public function indexadsusersByViews(Request $request)
     {
         $query = Ad::with(['subImages', 'fieldValues', 'user'])
@@ -1174,11 +1173,6 @@ class AdController extends Controller
             'ads' => $transformedAds,
         ]);
     }
-
-
-
-
-
     public function indexAdsGroupedByCategory(Request $request)
     {
         $now = Carbon::now();
@@ -1272,11 +1266,6 @@ class AdController extends Controller
             'categories' => $result,
         ]);
     }
-
-
-
-
-
     public function search(Request $request)
     {
         $query = Ad::with(['subImages', 'fieldValues', 'user', 'views']);
@@ -1363,11 +1352,6 @@ class AdController extends Controller
 
         return response()->json(['ads' => $ads]);
     }
-
-
-
-
-
     public function indexbyuserid(Request $request)
     {
         $query = Ad::with(['subImages', 'fieldValues', 'user']);
@@ -1431,7 +1415,6 @@ class AdController extends Controller
 
         return response()->json(['ads' => $ads]);
     }
-
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
@@ -1552,8 +1535,6 @@ class AdController extends Controller
             'message' => 'تم تحديث حالة الإعلان بنجاح.',
         ]);
     }
-
-
     public function indexbyadsid(Request $request)
     {
         // $query = Ad::with(['subImages', 'fieldValues.field', 'fieldValues.fieldValue', 'user', 'adViews', 'features.value.field']);
@@ -1711,7 +1692,6 @@ class AdController extends Controller
 
         return response()->json(['ads' => $ads]);
     }
-
     public function updateCarOptionFeature(Request $request)
     {
         // تحقق من البيانات المطلوبة
@@ -1739,10 +1719,6 @@ class AdController extends Controller
             'data' => $feature
         ]);
     }
-
-
-
-
     public function toggleFavorite(Request $request)
     {
         $user = JWTAuth::parseToken()->authenticate();
@@ -1772,8 +1748,6 @@ class AdController extends Controller
             return response()->json(['message' => 'Ad added to favorites']);
         }
     }
-
-
     public function getFavorites()
     {
         $user = JWTAuth::parseToken()->authenticate();
@@ -1866,7 +1840,6 @@ class AdController extends Controller
 
         return response()->json(['favorites' => $favorites]);
     }
-
     public function seen(Request $request, $ad_id)
     {
         // جلب الإعلان والتأكد من أنه موجود وحالته approved
@@ -1900,8 +1873,6 @@ class AdController extends Controller
 
         return response()->json(['message' => 'Ad view recorded successfully']);
     }
-
-
     public function getUserProfile(Request $request, $user_id)
     {
         $authUser = JWTAuth::parseToken()->authenticate();
@@ -1966,8 +1937,6 @@ class AdController extends Controller
             }),
         ]);
     }
-
-
     public function stats()
     {
         $totalAds = \App\Models\Ad::count();
@@ -1985,9 +1954,6 @@ class AdController extends Controller
             ],
         ]);
     }
-
-
-
     public function mostRecentAds(Request $request)
     {
         $query = Ad::where('status', 'approved')
@@ -2059,10 +2025,6 @@ class AdController extends Controller
             'data' => $adsData
         ]);
     }
-
-
-
-
     public function testvidresize(Request $request)
     {
         if (!$request->hasFile('rvid')) {

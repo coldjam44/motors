@@ -35,7 +35,14 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'], // or ['https://your-frontend.com']
+    // 'allowed_origins' => ['*'], // or ['https://your-frontend.com']
+         'allowed_origins' => [
+        'https://motorssooq.com',
+        'https://dashboard.motorssooq.com/',
+        'https://www.motorssooq.com',
+        'http://localhost:3000', // for development
+        // Add other domains as needed
+    ],
 
     'allowed_origins_patterns' => [],
 
@@ -45,6 +52,6 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => false,
+    'supports_credentials' => true,
 
 ];

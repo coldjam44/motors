@@ -73,6 +73,14 @@ Route::post('/categories/{category}/fields/store-car-model', [CategoryFieldContr
 Route::post('/categories/{categoryId}/toggle-kilometers', [CategoryController::class, 'toggleKilometers'])->name('categories.toggleKilometers');
 });
 
-Route::get('auth/google',[GoogleController::class,'googlepage']);
-Route::get('auth/google/callback',[GoogleController::class,'googlecallback']);
-Route::GET('/google/authenticate', [GoogleController::class, 'getLogindataUsingGoogleCode']);
+// Handle preflight OPTIONS requests for CORS routes
+Route::options('auth/google', function () { return response('', 200); });
+Route::options('auth/google/callback', function () { return response('', 200); });
+Route::options('google/authenticate', function () { return response('', 200); });
+
+// Your CORS routes
+Route::middleware('cors')->group(function () {
+    Route::get('auth/google', [GoogleController::class, 'googlepage']);
+    Route::get('auth/google/callback', [GoogleController::class, 'googlecallback']);
+    Route::get('/google/authenticate', [GoogleController::class, 'getLogindataUsingGoogleCode']);
+});

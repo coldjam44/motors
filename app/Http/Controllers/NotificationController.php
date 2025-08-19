@@ -110,31 +110,33 @@ class NotificationController extends Controller
         return response()->json(['message' => 'Notifications marked as read']);
     }
 
-
-
-    public function testNotification()
-    {
-        $user = auth()->user();
-        $faker = Faker::create();
-
-        $notifications = [];
-
-        for ($i = 1; $i <= 10; $i++) {
-            $randomName = $faker->firstName;
-            $randomNumber = $faker->randomNumber(5, true); // رقم عشوائي بخمسة أرقام
-
-            $notifications[] = Notification::create([
-                'user_id' => $user->id,
-                'type' => 'test',
-                'message_ar' => "هذا إشعار اختبار باسم $randomName ورقم $randomNumber",
-                'message_en' => "This is a test notification with name $randomName and number $randomNumber",
-                'is_read' => false,
-            ]);
-        }
-
-        return response()->json([
-            'message' => '10 test notifications created',
-            'notifications' => $notifications,
-        ], 201);
+  public function testNotification()
+{
+   $user = auth()->user();
+    if (!$user) {
+        return response()->json(['message' => 'يجب تسجيل الدخول أولاً'], 401);
     }
+    $faker = Faker::create();
+
+    $notifications = [];
+
+    for ($i = 1; $i <= 10; $i++) {
+        $randomName = $faker->firstName;
+        $randomNumber = $faker->randomNumber(5, true);
+
+        $notifications[] = Notification::create([
+            'user_id' => $user->id,
+            'type' => 'test',
+            'message_ar' => "هذا إشعار اختبار باسم $randomName ورقم $randomNumber",
+            'message_en' => "This is a test notification with name $randomName and number $randomNumber",
+            'is_read' => false,
+        ]);
+    }
+
+    return response()->json([
+        'message' => '10 test notifications created',
+        'notifications' => $notifications,
+    ], 201);
+}
+
 }
