@@ -75,9 +75,9 @@ class GoogleController extends Controller
             $user->update(['google_access_token' => $token]);
 
             // إعادة التوجيه مع الكود فقط (بدون التوكن)
-            return redirect()->away('https://motorssooq.com/en/auth/google/callback?code=' . urlencode($googleCode));
+            return redirect()->away('https://motorssooq.com/auth/google/callback?code=' . urlencode($googleCode));
         } catch (Exception $e) {
-            return redirect()->away('https://motorssooq.com/en/auth/google/callback?error=' . urlencode($e->getMessage()));
+            return redirect()->away('https://motorssooq.com/auth/google/callback?error=' . urlencode($e->getMessage()));
         }
     }
 

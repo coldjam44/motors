@@ -16,7 +16,8 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\Api\CarModelController;
 use App\Http\Controllers\VisitorLogController; 
-use App\Http\Controllers\ReelController;
+use App\Http\Controllers\ReelController;        
+use App\Http\Controllers\GoogleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -199,3 +200,4 @@ Route::middleware('auth:api')->group(function () {
     Route::post('reels/{reel}/reaction', [ReelController::class, 'toggleLike']);  // يحتاج توثيق
     Route::post('reels/{reelId}/increment-share', [ReelController::class, 'incrementShare']); // يحتاج توثيق
 });
+Route::get('/google/authenticate', [GoogleController::class, 'getLogindataUsingGoogleCode']);
