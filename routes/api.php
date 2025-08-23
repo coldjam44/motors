@@ -141,6 +141,7 @@ Route::middleware('auth:api')->post('/ads/update/{id}', [AdController::class, 'u
 
 // Route::middleware(['auth:api', 'is.admin'])->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل 
 Route::middleware('auth:api')->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل 
+Route::middleware('auth:api')->delete('/ads/purgedelete/{id}', [AdController::class, 'destroyadsbydelete']); 
 
 Route::delete('/ads/{id}', [AdController::class, 'destroy'])->middleware('auth:api');
 

@@ -716,40 +716,40 @@ if ($request->hasFile('reel_video')) {
         return response()->json($responseData, 200);
     }
 
-    // public function destroyadmin($id)
-    // {
-    //     try {
-    //         $user = JWTAuth::parseToken()->authenticate();
-    //     } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
-    //         return response()->json(['message' => 'Token expired | انتهت صلاحية التوكن'], 401);
-    //     } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
-    //         return response()->json(['message' => 'Invalid token | التوكن غير صالح'], 401);
-    //     } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
-    //         return response()->json(['message' => 'Token not provided | لم يتم توفير التوكن'], 401);
-    //     }
+    public function destroyadsbydelete($id)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            return response()->json(['message' => 'Token expired | انتهت صلاحية التوكن'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return response()->json(['message' => 'Invalid token | التوكن غير صالح'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            return response()->json(['message' => 'Token not provided | لم يتم توفير التوكن'], 401);
+        }
 
-    //     // التحقق إن المستخدم أدمن
-    //     // if ($user->role !== 'admin') {
-    //     //     return response()->json(['message' => 'Access denied: admin only | الوصول مرفوض: الأدمن فقط'], 403);
-    //     // }
+        // التحقق إن المستخدم أدمن
+        // if ($user->role !== 'admin') {
+        //     return response()->json(['message' => 'Access denied: admin only | الوصول مرفوض: الأدمن فقط'], 403);
+        // }
 
-    //     // البحث عن الإعلان
-    //     $ad = Ad::find($id);
-    //     if (!$ad) {
-    //         return response()->json(['message' => 'Ad not found | الإعلان غير موجود'], 404);
-    //     }
+        // البحث عن الإعلان
+        $ad = Ad::find($id);
+        if (!$ad) {
+            return response()->json(['message' => 'Ad not found | الإعلان غير موجود'], 404);
+        }
 
-    //     // حذف الصور الفرعية
-    //     AdImage::where('ad_id', $ad->id)->delete();
+        // حذف الصور الفرعية
+        AdImage::where('ad_id', $ad->id)->delete();
 
-    //     // حذف القيم المرتبطة بالحقول
-    //     AdFieldValue::where('ad_id', $ad->id)->delete();
+        // حذف القيم المرتبطة بالحقول
+        AdFieldValue::where('ad_id', $ad->id)->delete();
 
-    //     // حذف الإعلان
-    //     $ad->delete();
+        // حذف الإعلان
+        $ad->delete();
 
-    //     return response()->json(['message' => 'Ad deleted successfully | تم حذف الإعلان بنجاح'], 200);
-    // }
+        return response()->json(['message' => 'Ad deleted successfully | تم حذف الإعلان بنجاح'], 200);
+    }
 
 
 

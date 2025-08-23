@@ -71,33 +71,59 @@ class ReelController extends Controller
     }
 
     public function getAllReels()
-    {
+    { 
         $baseUrl = url('/');
+ $reelsQuery = DB::table('reels')
+    ->leftJoin('ads', 'reels.reels_ad_id', '=', 'ads.id')
+    ->leftJoin('userauths', 'ads.user_id', '=', 'userauths.id')
+    ->select(
+        'reels.reels_id as reel_id',
+        'reels.reels_ad_id as ad_id',
+        'reels.reels_video_url',
+        'reels.reels_thumbnail_url',
+        'reels.reels_like_count',
+        'reels.reels_view_count',
+        'reels.reels_share_count',
+        'reels.created_at',
+        'ads.title as ad_title',
+        'ads.main_image as ad_main_image',
+        'userauths.id as user_id',
+        DB::raw("CONCAT(userauths.first_name, ' ', userauths.last_name) as user_name"),
+        'userauths.profile_image'
+    )
+    ->where('ads.status', 'approved'); // <-- الشرط الجديد
 
-        $reelsQuery = DB::table('reels')
-            ->leftJoin('ads', 'reels.reels_ad_id', '=', 'ads.id')
-            ->leftJoin('userauths', 'ads.user_id', '=', 'userauths.id')
-            ->select(
-                'reels.reels_id as reel_id',
-                'reels.reels_ad_id as ad_id',
-                'reels.reels_video_url',
-                'reels.reels_thumbnail_url',
-                'reels.reels_like_count',
-                'reels.reels_view_count',
-                'reels.reels_share_count',
-                'reels.created_at',
-                'ads.title as ad_title',
-                'ads.main_image as ad_main_image',
-                'userauths.id as user_id',
-                DB::raw("CONCAT(userauths.first_name, ' ', userauths.last_name) as user_name"),
-                'userauths.profile_image'
-            );
+if (request()->has('country_id')) {
+    $reelsQuery->where('ads.country_id', request('country_id'));
+}
 
-        if (request()->has('country_id')) {
-            $reelsQuery->where('ads.country_id', request('country_id'));
-        }
+$reels = $reelsQuery->paginate(10);
 
-        $reels = $reelsQuery->paginate(10);
+
+        // $reelsQuery = DB::table('reels')
+        //     ->leftJoin('ads', 'reels.reels_ad_id', '=', 'ads.id')
+        //     ->leftJoin('userauths', 'ads.user_id', '=', 'userauths.id')
+        //     ->select(
+        //         'reels.reels_id as reel_id',
+        //         'reels.reels_ad_id as ad_id',
+        //         'reels.reels_video_url',
+        //         'reels.reels_thumbnail_url',
+        //         'reels.reels_like_count',
+        //         'reels.reels_view_count',
+        //         'reels.reels_share_count',
+        //         'reels.created_at',
+        //         'ads.title as ad_title',
+        //         'ads.main_image as ad_main_image',
+        //         'userauths.id as user_id',
+        //         DB::raw("CONCAT(userauths.first_name, ' ', userauths.last_name) as user_name"),
+        //         'userauths.profile_image'
+        //     );
+
+        // if (request()->has('country_id')) {
+        //     $reelsQuery->where('ads.country_id', request('country_id'));
+        // }
+
+        // $reels = $reelsQuery->paginate(10);
 
 
         foreach ($reels as $reel) {
