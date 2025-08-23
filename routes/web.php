@@ -75,4 +75,4 @@ Route::post('/categories/{categoryId}/toggle-kilometers', [CategoryController::c
 
 Route::get('auth/google',[GoogleController::class,'googlepage']);
 Route::get('auth/google/callback',[GoogleController::class,'googlecallback']);
-Route::GET('/google/authenticate', [GoogleController::class, 'getLogindataUsingGoogleCode']);
+Route::get('/google/authenticate', [GoogleController::class, 'getLogindataUsingGoogleCode']);

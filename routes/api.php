@@ -17,6 +17,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\Api\CarModelController;
 use App\Http\Controllers\VisitorLogController; 
 use App\Http\Controllers\ReelController;
+use App\Http\Controllers\GoogleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -119,7 +120,8 @@ Route::middleware('auth:api')->group(function () {
 });
 
 //Route::post('/ads/{id}/status', [AdController::class, 'updateStatus']);
-Route::middleware(['auth:api', 'is.admin'])->post('/ads/{id}/status', [AdController::class, 'updateStatus']); 
+Route::middleware('auth:api')->post('/ads/{id}/status', [AdController::class, 'updateStatus']); 
+// Route::middleware(['auth:api', 'is.admin'])->post('/ads/{id}/status', [AdController::class, 'updateStatus']); 
 Route::get('/adss', [AdController::class, 'indexadsusers']); // ✅ جميع الإعلانات
 Route::get('/search', [AdController::class, 'search']);
 Route::get('/adsbyuserid', [AdController::class, 'indexbyuserid']);
@@ -134,10 +136,11 @@ Route::post('/caroptionupdate', [AdController::class, 'updateCarOptionFeature'])
 
 
 Route::middleware('auth:api')->post('/ads/update/{id}', [AdController::class, 'update']);
-  //  Route::middleware('auth:api')->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل
+//    Route::middleware('auth:api')->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل
 
 
-Route::middleware(['auth:api', 'is.admin'])->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل 
+// Route::middleware(['auth:api', 'is.admin'])->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل 
+Route::middleware('auth:api')->delete('/ads/destory/{id}', [AdController::class, 'destroyadmin']); // حذف حقل 
 
 Route::delete('/ads/{id}', [AdController::class, 'destroy'])->middleware('auth:api');
 
@@ -199,3 +202,4 @@ Route::middleware('auth:api')->group(function () {
     Route::post('reels/{reel}/reaction', [ReelController::class, 'toggleLike']);  // يحتاج توثيق
     Route::post('reels/{reelId}/increment-share', [ReelController::class, 'incrementShare']); // يحتاج توثيق
 });
+Route::get('/google/authenticate', [GoogleController::class, 'getLogindataUsingGoogleCode']);

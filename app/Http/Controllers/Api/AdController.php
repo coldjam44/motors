@@ -32,7 +32,7 @@ use App\Models\User;
 class AdController extends Controller
 {
 
-
+ 
     public function store(Request $request)
     {
         // استرجاع المستخدم من التوكن
@@ -441,13 +441,15 @@ class AdController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        if (!$request->hasFile('reel_video')) {
-            $request->request->remove('reel_video');
-        }
+        // if (!$request->hasFile('reel_video')) {
+        //     $request->request->remove('reel_video');
+        // }
 
 
 
         $ad = Ad::where('id', $id)->where('user_id', $user->id)->first();
+
+
         if (!$ad) {
             return response()->json([
                 'message' => 'الإعلان غير موجود أو لا يخص هذا المستخدم. | Ad not found or does not belong to the authenticated user.'
@@ -474,9 +476,14 @@ class AdController extends Controller
 
         ]);
 
+
+
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
+
+
+
 
         // Update ad with the car_model field included
         $ad->update($request->only([
@@ -545,52 +552,66 @@ class AdController extends Controller
             }
         }
 
-        // === تحديث فيديو الريلز ===
-        $newReel = null;
-        if ($request->hasFile('reel_video')) {
-            $reelVideo = $request->file('reel_video');
-            $videoName = time() . '_' . $reelVideo->getClientOriginalName();
-            $videoPath = public_path('reels/' . $videoName);
-            $reelVideo->move(public_path('reels'), $videoName);
 
-            // حذف السجل القديم إن وجد
-            $existingReel = DB::table('reels')->where('reels_ad_id', $ad->id)->first();
-            if ($existingReel) {
-                if ($existingReel->reels_video_url && file_exists(public_path($existingReel->reels_video_url))) {
-                    @unlink(public_path($existingReel->reels_video_url));
-                }
-                if ($existingReel->reels_thumbnail_url && file_exists(public_path($existingReel->reels_thumbnail_url))) {
-                    @unlink(public_path($existingReel->reels_thumbnail_url));
-                }
 
-                DB::table('reels')->where('reels_ad_id', $ad->id)->delete();
-            }
 
-            // توليد صورة الـ thumbnail من الفيديو باستخدام ffmpeg
-            $thumbnailName = pathinfo($videoName, PATHINFO_FILENAME) . '.jpg';
-            $thumbnailPath = public_path('reels/' . $thumbnailName);
-            $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg'); // تأكد المسار صحيح
-            $command = "$ffmpegPath -i " . escapeshellarg($videoPath) . " -ss 00:00:01 -vframes 1 " . escapeshellarg($thumbnailPath);
-            shell_exec($command);
 
-            $likeCount = $existingReel->reels_like_count ?? 0;
+ // === التعامل مع فيديو الريلز ===
+$existingReel = DB::table('reels')->where('reels_ad_id', $ad->id)->first();
+$newReel = null;
 
-            // إدخال سجل جديد للريلز مع بيانات الفيديو والصورة واللايكات
-            DB::table('reels')->insert([
-                'reels_ad_id' => $ad->id,
-                'reels_video_url' => 'reels/' . $videoName,
-                'reels_thumbnail_url' => 'reels/' . $thumbnailName,
-                'reels_like_count' => $likeCount,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+if ($request->hasFile('reel_video')) {
+    // ==== حالة رفع فيديو جديد ====
+    $reelVideo = $request->file('reel_video');
+    $videoName = time() . '_' . $reelVideo->getClientOriginalName();
+    $videoPath = public_path('reels/' . $videoName);
+    $reelVideo->move(public_path('reels'), $videoName);
 
-            // جلب السجل الجديد للريلز لإرجاعه في الرد
-            $newReel = DB::table('reels')->where('reels_ad_id', $ad->id)->first();
+    // حذف الفيديو القديم إن وجد
+    if ($existingReel) {
+        if ($existingReel->reels_video_url && file_exists(public_path($existingReel->reels_video_url))) {
+            @unlink(public_path($existingReel->reels_video_url));
         }
+        if ($existingReel->reels_thumbnail_url && file_exists(public_path($existingReel->reels_thumbnail_url))) {
+            @unlink(public_path($existingReel->reels_thumbnail_url));
+        }
+        DB::table('reels')->where('reels_ad_id', $ad->id)->delete();
+    }
 
+    // توليد صورة thumbnail من الفيديو
+    $thumbnailName = pathinfo($videoName, PATHINFO_FILENAME) . '.jpg';
+    $thumbnailPath = public_path('reels/' . $thumbnailName);
+    $ffmpegPath = public_path('../ffmpeg-7.0.2-amd64-static/ffmpeg'); // تأكد المسار صح
+    $command = "$ffmpegPath -i " . escapeshellarg($videoPath) . " -ss 00:00:01 -vframes 1 " . escapeshellarg($thumbnailPath);
+    shell_exec($command);
 
+    $likeCount = $existingReel->reels_like_count ?? 0;
 
+    // إدخال السجل الجديد
+    DB::table('reels')->insert([
+        'reels_ad_id' => $ad->id,
+        'reels_video_url' => 'reels/' . $videoName,
+        'reels_thumbnail_url' => 'reels/' . $thumbnailName,
+        'reels_like_count' => $likeCount,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $newReel = DB::table('reels')->where('reels_ad_id', $ad->id)->first();
+
+} else {
+    // ==== حالة عدم وجود فيديو جديد ====
+    if ($existingReel) {
+        // هنا بنعتبر إن المستخدم مسح الفيديو من الفورم
+        if ($existingReel->reels_video_url && file_exists(public_path($existingReel->reels_video_url))) {
+            @unlink(public_path($existingReel->reels_video_url));
+        }
+        if ($existingReel->reels_thumbnail_url && file_exists(public_path($existingReel->reels_thumbnail_url))) {
+            @unlink(public_path($existingReel->reels_thumbnail_url));
+        }
+        DB::table('reels')->where('reels_ad_id', $ad->id)->delete();
+    }
+}
 
         // إذا كانت car_options موجودة في الطلب وليست فارغة
         if ($request->has('car_options') && !empty($request->car_options)) {
@@ -695,41 +716,122 @@ class AdController extends Controller
         return response()->json($responseData, 200);
     }
 
-    public function destroyadmin($id)
-    {
-        try {
-            $user = JWTAuth::parseToken()->authenticate();
-        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
-            return response()->json(['message' => 'Token expired | انتهت صلاحية التوكن'], 401);
-        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
-            return response()->json(['message' => 'Invalid token | التوكن غير صالح'], 401);
-        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
-            return response()->json(['message' => 'Token not provided | لم يتم توفير التوكن'], 401);
-        }
+    // public function destroyadmin($id)
+    // {
+    //     try {
+    //         $user = JWTAuth::parseToken()->authenticate();
+    //     } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+    //         return response()->json(['message' => 'Token expired | انتهت صلاحية التوكن'], 401);
+    //     } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+    //         return response()->json(['message' => 'Invalid token | التوكن غير صالح'], 401);
+    //     } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+    //         return response()->json(['message' => 'Token not provided | لم يتم توفير التوكن'], 401);
+    //     }
 
-        // التحقق إن المستخدم أدمن
-        if ($user->role !== 'admin') {
-            return response()->json(['message' => 'Access denied: admin only | الوصول مرفوض: الأدمن فقط'], 403);
-        }
+    //     // التحقق إن المستخدم أدمن
+    //     // if ($user->role !== 'admin') {
+    //     //     return response()->json(['message' => 'Access denied: admin only | الوصول مرفوض: الأدمن فقط'], 403);
+    //     // }
 
-        // البحث عن الإعلان
-        $ad = Ad::find($id);
-        if (!$ad) {
-            return response()->json(['message' => 'Ad not found | الإعلان غير موجود'], 404);
-        }
+    //     // البحث عن الإعلان
+    //     $ad = Ad::find($id);
+    //     if (!$ad) {
+    //         return response()->json(['message' => 'Ad not found | الإعلان غير موجود'], 404);
+    //     }
 
-        // حذف الصور الفرعية
-        AdImage::where('ad_id', $ad->id)->delete();
+    //     // حذف الصور الفرعية
+    //     AdImage::where('ad_id', $ad->id)->delete();
 
-        // حذف القيم المرتبطة بالحقول
-        AdFieldValue::where('ad_id', $ad->id)->delete();
+    //     // حذف القيم المرتبطة بالحقول
+    //     AdFieldValue::where('ad_id', $ad->id)->delete();
 
-        // حذف الإعلان
-        $ad->delete();
+    //     // حذف الإعلان
+    //     $ad->delete();
 
-        return response()->json(['message' => 'Ad deleted successfully | تم حذف الإعلان بنجاح'], 200);
+    //     return response()->json(['message' => 'Ad deleted successfully | تم حذف الإعلان بنجاح'], 200);
+    // }
+
+
+
+public function destroyadmin($id)
+{
+    try {
+        $user = JWTAuth::parseToken()->authenticate();
+    } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+        return response()->json(['message' => 'Token expired | انتهت صلاحية التوكن'], 401);
+    } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+        return response()->json(['message' => 'Invalid token | التوكن غير صالح'], 401);
+    } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+        return response()->json(['message' => 'Token not provided | لم يتم توفير التوكن'], 401);
     }
 
+    // التحقق إن المستخدم أدمن (تقدر تفعلها لو عندك رولز)
+    // if ($user->role !== 'admin') {
+    //     return response()->json(['message' => 'Access denied: admin only | الوصول مرفوض: الأدمن فقط'], 403);
+    // }
+
+    // البحث عن الإعلان
+    $ad = Ad::find($id);
+    if (!$ad) {
+        return response()->json(['message' => 'Ad not found | الإعلان غير موجود'], 404);
+    }
+
+    // بدلاً من حذف الإعلان، نحوله إلى inactive
+    $ad->status = 'inactive';
+    $ad->save();
+
+    // ====== إنشاء إشعار لصاحب الإعلان ======
+    $countryNameAr = DB::table('countries')->where('id', $ad->country_id)->value('name_ar') ?? 'بدون دولة';
+    $countryNameEn = DB::table('countries')->where('id', $ad->country_id)->value('name_en') ?? 'No Country';
+
+    $categoryNameAr = DB::table('categories')->where('id', $ad->category_id)->value('name_ar') ?? 'بدون فئة';
+    $categoryNameEn = DB::table('categories')->where('id', $ad->category_id)->value('name_en') ?? 'No Category';
+
+    $messageAr = "تم تعطيل إعلانك في $categoryNameAr - $countryNameAr من قبل الإدارة.";
+    $messageEn = "Your ad in $categoryNameEn - $countryNameEn has been deactivated by the admin.";
+
+    Notification::create([
+        'user_id'    => $ad->user_id,
+        'ad_id'      => $ad->id,
+        'type'       => 'ad_inactive',
+        'message_ar' => $messageAr,
+        'message_en' => $messageEn,
+        'is_read'    => false,
+    ]);
+
+    return response()->json(['message' => 'Ad set to inactive successfully | تم تحويل الإعلان إلى inactive'], 200);
+}
+
+
+// public function destroyadmin($id)
+// {
+//     try {
+//         $user = JWTAuth::parseToken()->authenticate();
+//     } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+//         return response()->json(['message' => 'Token expired | انتهت صلاحية التوكن'], 401);
+//     } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+//         return response()->json(['message' => 'Invalid token | التوكن غير صالح'], 401);
+//     } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+//         return response()->json(['message' => 'Token not provided | لم يتم توفير التوكن'], 401);
+//     }
+
+//     // التحقق إن المستخدم أدمن
+//     // if ($user->role !== 'admin') {
+//     //     return response()->json(['message' => 'Access denied: admin only | الوصول مرفوض: الأدمن فقط'], 403);
+//     // }
+
+//     // البحث عن الإعلان
+//     $ad = Ad::find($id);
+//     if (!$ad) {
+//         return response()->json(['message' => 'Ad not found | الإعلان غير موجود'], 404);
+//     }
+
+//     // بدلاً من حذف الإعلان، نحوله إلى inactive
+//     $ad->status = 'inactive';
+//     $ad->save();
+
+//     return response()->json(['message' => 'Ad set to inactive successfully | تم تحويل الإعلان إلى inactive'], 200);
+// }
 
 
 
