@@ -241,7 +241,7 @@ class AdController extends Controller
             $constraint->aspectRatio(); // الحفاظ على نسبة العرض إلى الارتفاع
             // لا نستخدم $constraint->upsize() للسماح بالتكبير
         });
-        $image->insert(public_path('watermark.png'), 'center'); // إضافة العلامة المائية
+        $image->insert(public_path('watermark.png'), 'bottom-right', 90, 90); // إضافة العلامة المائية
         $image->save($mainImagePath);
 
 
@@ -319,7 +319,7 @@ class AdController extends Controller
                         $constraint->aspectRatio(); // الحفاظ على نسبة العرض إلى الارتفاع
                         // لا نستخدم $constraint->upsize() للسماح بالتكبير
                     });
-                    $subImg->insert(public_path('watermark.png'), 'center'); // إضافة العلامة المائية
+                    $subImg->insert(public_path('watermark.png'), 'bottom-right', 90, 90); // إضافة العلامة المائية
                     $subImg->save($subImagePath);
 
                     // حفظ الصورة في قاعدة البيانات
@@ -515,7 +515,7 @@ class AdController extends Controller
             $image->resize(2000, 1300, function ($constraint) {
                 $constraint->aspectRatio(); // الحفاظ على نسبة العرض إلى الارتفاع
             });
-            $image->insert(public_path('watermark.png'), 'center'); // إضافة العلامة المائية
+            $image->insert(public_path('watermark.png'), 'bottom-right', 90, 90); // إضافة العلامة المائية
             $image->save($mainImagePath);
 
             $ad->status = 'pending';
@@ -542,7 +542,7 @@ class AdController extends Controller
                 $subImg->resize(2000, 1300, function ($constraint) {
                     $constraint->aspectRatio(); // الحفاظ على نسبة العرض إلى الارتفاع
                 });
-                $subImg->insert(public_path('watermark.png'), 'center'); // إضافة العلامة المائية
+                $subImg->insert(public_path('watermark.png'), 'bottom-right', 90, 90); // إضافة العلامة المائية
                 $subImg->save($subImagePath);
 
                 AdImage::create([
