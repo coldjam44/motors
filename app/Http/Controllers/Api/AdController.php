@@ -241,7 +241,17 @@ class AdController extends Controller
             $constraint->aspectRatio(); // الحفاظ على نسبة العرض إلى الارتفاع
             // لا نستخدم $constraint->upsize() للسماح بالتكبير
         });
-        $image->insert(public_path('watermark.png'), 'bottom-right', 90, 90); // إضافة العلامة المائية
+        $image->insert(
+            Image::make(public_path('watermark.png'))->resize(
+                Image::make(public_path('watermark.png'))->width() * 0.3, 
+                null, 
+                function ($c) { $c->aspectRatio(); }
+            ), 
+            'bottom-right', 
+            90, 
+            90
+        );
+        // إضافة العلامة المائية
         $image->save($mainImagePath);
 
 
